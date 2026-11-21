@@ -441,10 +441,7 @@
         </div>
 
         <div class="flex gap-2">
-          <button id="btnLeaveRoom" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs">방 나가기</button>
-          <button id="btnStudentWaitUpgrade" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-110 text-white font-extrabold text-xs">
-            ⚡ 대기 중 미리 업그레이드
-          </button>
+          <button id="btnLeaveRoom" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs">방 나가기</button>
         </div>
       </div>
     </div>
@@ -515,15 +512,7 @@
         </button>
       </div>
 
-      <!-- 빠른 메뉴 -->
-      <div class="flex flex-wrap gap-1.5">
-        <button id="btnHudUpgrade" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 text-[11px] font-extrabold text-amber-300 transition">
-          ⚡ 업그레이드
-        </button>
-        <button id="btnHudExit" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 text-[11px] font-bold text-slate-300 transition">
-          🏠 로비
-        </button>
-      </div>
+
     </div>
 
     <!-- 우상단 레이더 미니맵 (전역 컨트롤 바 아래 배치) -->
@@ -820,6 +809,8 @@
          ===================================================================== */
       function createDefaultSave() {
         return {
+          entryGatePassed: false,
+          entryGateProgress: 0,
           basicEvoUnlocked: false,
           basicReqProgress: 0,
           reachedWhiteDwarf: false,
@@ -870,6 +861,9 @@
       }
       function persistSaveData() {
         try { localStorage.setItem(SAVE_KEY, JSON.stringify(saveData)); } catch (e) {}
+        if (typeof MultiplayerBridge !== 'undefined' && MultiplayerBridge.role === 'STUDENT' && MultiplayerBridge.roomRef) {
+          MultiplayerBridge.syncSavedProgressToRoom();
+        }
       }
       loadSaveData();
 
@@ -1167,7 +1161,10 @@
         returnToRunOverAfterUpgrade: false,
         matchDurationSec: MATCH_DURATION,
         multiSyncAccum: 0,
-        teacherSpectating: false
+        teacherSpectating: false,
+        pendingPlayType: 'SINGLE',
+        reconnectPenaltyRemaining: 0,
+        reconnectPenaltyNoStartMass: false
       };
 
       const inputState = {
@@ -1183,6 +1180,7 @@
         joyKnobX: 0,
         joyKnobY: 0,
         boostHeld: false,
+        boostTouchId: null,
         flareAiming: false,
         flareTouchId: null,
         flareOriginX: 0,
@@ -1436,6 +1434,17 @@
       }
 
       function startNewMatch(playType = 'SINGLE') {
+        // 필수 문제가 존재하고 아직 입장 조건을 통과하지 않았다면 필수 문제 퀴즈 게이트 실행
+        if (quizPool.required.length > 0 && !saveData.entryGatePassed) {
+          gameState.pendingPlayType = playType;
+          gameState.mode = 'ENTRY_GATE';
+          document.getElementById('lobbyModal').classList.add('hidden');
+          document.getElementById('multiModal').classList.add('hidden');
+          document.getElementById('runOverModal').classList.add('hidden');
+          startQuizChallenge({ kind: 'entry_gate' });
+          return;
+        }
+
         const nameInput = document.getElementById('playerNameInput');
         const studentInput = document.getElementById('studentNameInput');
         const rawName = (playType === 'MULTI' && studentInput && studentInput.value.trim())
@@ -1476,10 +1485,17 @@
           for (let i = 0; i < MAX_DUST_COUNT; i++) spawnOneDust();
         }
 
-        const startAsProtostar = !!saveData.startProtostarUnlocked;
-        const startMass = startAsProtostar
-          ? getStageById('protostar').minMass + (saveData.stats.startMass || 0) * 22
-          : getStartMass();
+        const hasReconnectPenalty = !!gameState.reconnectPenaltyNoStartMass;
+        const penaltySec = gameState.reconnectPenaltyRemaining || 0;
+        gameState.reconnectPenaltyNoStartMass = false;
+        gameState.reconnectPenaltyRemaining = 0;
+
+        const startAsProtostar = !hasReconnectPenalty && !!saveData.startProtostarUnlocked;
+        const startMass = hasReconnectPenalty
+          ? 30
+          : (startAsProtostar
+            ? getStageById('protostar').minMass + (saveData.stats.startMass || 0) * 22
+            : getStartMass());
         gameState.player = {
           id: MultiplayerBridge.myId || 'player_main',
           isPlayer: true,
@@ -1496,7 +1512,8 @@
           flareCooldown: 0,
           antimatterAmmo: 0,
           rebirthDustCount: 0,
-          lockedWarnedStage: null
+          lockedWarnedStage: null,
+          reconnectPenaltyTimer: penaltySec
         };
 
         const botCount = playType === 'MULTI'
@@ -1515,6 +1532,7 @@
         document.getElementById('teacherModal').classList.add('hidden');
         document.getElementById('runOverModal').classList.add('hidden');
         document.getElementById('skillModal').classList.add('hidden');
+        document.getElementById('quizModal').classList.add('hidden');
         document.getElementById('rebirthModal').classList.add('hidden');
         document.getElementById('gameHUD').classList.remove('hidden');
         ControlLayoutManager.applyAll();
@@ -1585,7 +1603,13 @@
         }
       }
 
-      function getRebirthTargetInfo(stageId) {
+      function getRebirthTargetInfo(stageId, mass = 0) {
+        if (stageId === 'dust' && !saveData.basicEvoUnlocked && mass >= 140) {
+          return {
+            title: '성간 물질 임계 도달 · 기본 진화 해금 환생',
+            desc: '성간 물질이 충분히 모였습니다! 환생 후 업그레이드(진화 탭)에서 난이도 하 과학 퀴즈 3문제를 맞히면 [성운 ~ 백색왜성] 기본 진화가 해금됩니다.'
+          };
+        }
         if (stageId === 'white_dwarf' && !saveData.supergiantUnlocked) {
           return {
             title: '백색왜성 수명 한계 · 초거성 루트 환생',
@@ -1833,11 +1857,14 @@
         }
 
         // 백색왜성·중성자별 냉각(환생 유도) 시 소폭 감속 및 질량 성장 완만화
-        const rebirthInfo = getRebirthTargetInfo(p.stageId);
+        const rebirthInfo = getRebirthTargetInfo(p.stageId, p.mass);
         const coolingPenalty = rebirthInfo ? 0.92 : 1.0;
 
+        if (p.reconnectPenaltyTimer > 0) p.reconnectPenaltyTimer = Math.max(0, p.reconnectPenaltyTimer - dt);
+        const penaltyMult = p.reconnectPenaltyTimer > 0 ? 0.75 : 1.0;
+
         const canBoost = inputState.boostHeld && saveData.skills.boostUnlocked > 0 && p.mass > 35;
-        const baseSpeed = Math.max(115, 255 - Math.sqrt(p.mass) * 1.6) * getSpeedMult() * coolingPenalty;
+        const baseSpeed = Math.max(115, 255 - Math.sqrt(p.mass) * 1.6) * getSpeedMult() * coolingPenalty * penaltyMult;
         const finalSpeed = canBoost ? baseSpeed * 1.58 : baseSpeed;
         if (canBoost) {
           p.mass = Math.max(30, p.mass - 6.5 * dt);
@@ -2549,7 +2576,7 @@
           document.getElementById('hudMassBar').style.width = `${pct}%`;
           if (!unlocked && p.mass >= next.minMass) {
             lockHintEl.classList.remove('hidden');
-            lockHintEl.textContent = `🔒 [${nextName}] 업그레이드에서 해금 필요`;
+            lockHintEl.textContent = `🔒 [${nextName}] 사망·환생 후 해금 가능`;
           } else {
             lockHintEl.classList.add('hidden');
           }
@@ -2560,7 +2587,7 @@
         }
 
         // 환생 HUD
-        const rebirthInfo = getRebirthTargetInfo(p.stageId);
+        const rebirthInfo = getRebirthTargetInfo(p.stageId, p.mass);
         const rbBox = document.getElementById('hudRebirthBox');
         if (rebirthInfo) {
           rbBox.classList.remove('hidden');
@@ -2809,15 +2836,15 @@
 
           <!-- 4개 진화 해금 조건 카드 -->
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            <!-- 1. 기본 진화 해금 (필수 문제 순차 · 오답 시 초기화) -->
+            <!-- 1. 기본 진화 해금 (난이도 하 퀴즈 3개) -->
             <div class="bg-slate-900/85 border border-sky-500/40 rounded-2xl p-4 flex flex-col justify-between gap-3">
               <div>
                 <div class="flex items-center justify-between">
                   <span class="text-sm font-black text-white">🌟 기본 진화 해금</span>
-                  <span class="font-orbitron text-xs font-bold text-amber-300">${basicUnlocked ? `${reqTotal}/${reqTotal}` : `${saveData.basicReqProgress}/${reqTotal}`}</span>
+                  <span class="font-orbitron text-xs font-bold text-amber-300">${basicUnlocked ? '3/3' : `${saveData.basicReqProgress}/3`}</span>
                 </div>
                 <p class="text-[11px] text-slate-300 mt-1.5 leading-relaxed">
-                  필수 문제 ${reqTotal}개를 순서대로 모두 맞히면 기본 진화 단계가 해금됩니다. <span class="text-rose-300 font-bold">(틀리면 처음부터!)</span>
+                  난이도 하 퀴즈 3개를 맞히면 기본 진화 단계(성운 ~ 백색왜성)가 해금됩니다.
                 </p>
               </div>
               <button id="btnUnlockBasic" ${basicUnlocked ? 'disabled' : ''} class="w-full py-2.5 rounded-xl text-xs font-extrabold transition ${
@@ -2825,7 +2852,7 @@
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
                   : 'bg-gradient-to-r from-cyan-400 to-amber-300 text-slate-950 hover:brightness-110'
               }">
-                ${basicUnlocked ? '✓ 기본 진화 해금 완료' : '🧪 퀴즈 풀고 해금하기'}
+                ${basicUnlocked ? '✓ 기본 진화 해금 완료' : '🧪 난이도 하 퀴즈 도전'}
               </button>
             </div>
 
@@ -3087,14 +3114,19 @@
         let progressText = '';
         let ruleNotice = '';
 
-        if (ctxInfo.kind === 'evo_basic') {
-          const reqList = quizPool.required.length > 0 ? quizPool.required : quizPool.easy;
-          const idx = Math.min(saveData.basicReqProgress, reqList.length - 1);
+        if (ctxInfo.kind === 'entry_gate') {
+          const reqList = quizPool.required;
+          const idx = Math.min(saveData.entryGateProgress || 0, reqList.length - 1);
           question = reqList[idx];
-          title = '🌟 기본 진화 해금 (필수 문제)';
-          diffLabel = '필수 문제';
-          progressText = `${saveData.basicReqProgress + 1} / ${reqList.length}`;
-          ruleNotice = '⚠️ 필수 문제는 순서대로 출제되며, 중간에 틀리면 1번 문제부터 다시 풀어야 합니다!';
+          title = '🚪 게임 스테이지 입장 필수 퀴즈';
+          diffLabel = '입장 필수';
+          progressText = `${(saveData.entryGateProgress || 0) + 1} / ${reqList.length}`;
+          ruleNotice = `🚀 필수 문제 ${reqList.length}개를 모두 맞혀야 게임 스테이지에 입장할 수 있습니다!`;
+        } else if (ctxInfo.kind === 'evo_basic') {
+          question = pickNonRequiredQuestion('easy');
+          title = '🌟 기본 진화 해금 도전';
+          diffLabel = '난이도 하';
+          progressText = `${saveData.basicReqProgress + 1} / 3`;
         } else if (ctxInfo.kind === 'evo_supergiant') {
           question = pickNonRequiredQuestion('easy');
           title = '🔥 초거성 해금 도전';
@@ -3218,15 +3250,24 @@
           if (clickedBtn) clickedBtn.className = 'w-full text-left px-4 py-3 rounded-xl bg-emerald-600/80 border border-emerald-300 text-xs sm:text-sm font-bold text-white';
 
           let extraMsg = '정답입니다! 보상이 적용되었습니다.';
-          if (activeQuizCtx.kind === 'evo_basic') {
-            const reqTotal = Math.max(1, (quizPool.required.length > 0 ? quizPool.required : quizPool.easy).length);
-            saveData.basicReqProgress++;
-            if (saveData.basicReqProgress >= reqTotal) {
-              saveData.basicEvoUnlocked = true;
-              extraMsg = '🎉 모든 필수 문제를 맞혔습니다! 기본 진화(성운 ~ 백색왜성)가 해금되었습니다!';
+          if (activeQuizCtx.kind === 'entry_gate') {
+            const reqTotal = Math.max(1, quizPool.required.length);
+            saveData.entryGateProgress = (saveData.entryGateProgress || 0) + 1;
+            if (saveData.entryGateProgress >= reqTotal) {
+              saveData.entryGatePassed = true;
+              extraMsg = '🎉 모든 필수 입장 문제를 통과했습니다! 이제 우주 스테이지로 출격합니다!';
+              autoContinueBasic = 'entry_gate_done';
             } else {
-              extraMsg = `✅ 정답! (${saveData.basicReqProgress}/${reqTotal}) 다음 필수 문제로 이어집니다.`;
-              autoContinueBasic = true;
+              extraMsg = `✅ 정답! (${saveData.entryGateProgress}/${reqTotal}) 다음 입장 필수 문제로 넘어갑니다.`;
+              autoContinueBasic = 'entry_gate_next';
+            }
+          } else if (activeQuizCtx.kind === 'evo_basic') {
+            saveData.basicReqProgress++;
+            if (saveData.basicReqProgress >= 3) {
+              saveData.basicEvoUnlocked = true;
+              extraMsg = '🎉 난이도 하 퀴즈 3개를 모두 맞혔습니다! 기본 진화(성운 ~ 백색왜성)가 해금되었습니다!';
+            } else {
+              extraMsg = `✅ 정답! 기본 진화 해금 진행도: ${saveData.basicReqProgress} / 3`;
             }
           } else if (activeQuizCtx.kind === 'evo_supergiant') {
             saveData.supergiantQuizCount++;
@@ -3286,12 +3327,21 @@
           fbBox.textContent = extraMsg;
           finishBtn.textContent = autoContinueBasic === true
             ? '다음 필수 문제 풀기 →'
-            : autoContinueBasic === 'stat_protostar'
-              ? '다음 연속 문제 풀기 →'
-              : '확인';
+            : autoContinueBasic === 'entry_gate_next'
+              ? '다음 입장 문제 풀기 →'
+              : autoContinueBasic === 'entry_gate_done'
+                ? '🚀 우주 스테이지 입장하기!'
+                : autoContinueBasic === 'stat_protostar'
+                  ? '다음 연속 문제 풀기 →'
+                  : '확인';
           finishBtn.onclick = () => {
             if (autoContinueBasic === true) {
               startQuizChallenge({ kind: 'evo_basic' });
+            } else if (autoContinueBasic === 'entry_gate_next') {
+              startQuizChallenge({ kind: 'entry_gate' });
+            } else if (autoContinueBasic === 'entry_gate_done') {
+              document.getElementById('quizModal').classList.add('hidden');
+              startNewMatch(gameState.pendingPlayType || 'SINGLE');
             } else if (autoContinueBasic === 'stat_protostar') {
               startQuizChallenge({ kind: 'stat_protostar' });
             } else {
@@ -3303,10 +3353,9 @@
           SoundFX.wrong();
           if (clickedBtn) clickedBtn.className = 'w-full text-left px-4 py-3 rounded-xl bg-rose-600/80 border border-rose-300 text-xs sm:text-sm font-bold text-white';
           let failMsg = `❌ 아쉽습니다! 정답은 [${q.ansText}] 입니다.`;
-          if (activeQuizCtx.kind === 'evo_basic') {
-            saveData.basicReqProgress = 0;
-            persistSaveData();
-            failMsg = `❌ 오답! 정답은 [${q.ansText}] 입니다. 필수 문제 진행도가 0으로 초기화되어 처음부터 다시 도전해야 합니다.`;
+          if (activeQuizCtx.kind === 'entry_gate') {
+            failMsg = `❌ 오답! 정답은 [${q.ansText}] 입니다. 입장하려면 이 문제를 다시 맞혀야 합니다.`;
+
           } else if (activeQuizCtx.kind === 'stat_protostar') {
             saveData.startProtostarStreak = 0;
             persistSaveData();
@@ -3314,11 +3363,16 @@
           }
           fbBox.className = 'rounded-2xl p-3.5 text-xs sm:text-sm font-bold bg-rose-500/20 border border-rose-400/50 text-rose-200';
           fbBox.textContent = failMsg;
-          finishBtn.textContent = '업그레이드 창으로 돌아가기';
-          finishBtn.onclick = () => {
-            document.getElementById('quizModal').classList.add('hidden');
-            renderUpgradeModal();
-          };
+          if (activeQuizCtx.kind === 'entry_gate') {
+            finishBtn.textContent = '🔄 이 문제 다시 풀기';
+            finishBtn.onclick = () => startQuizChallenge({ kind: 'entry_gate' });
+          } else {
+            finishBtn.textContent = '업그레이드 창으로 돌아가기';
+            finishBtn.onclick = () => {
+              document.getElementById('quizModal').classList.add('hidden');
+              renderUpgradeModal();
+            };
+          }
         }
 
         fbBox.classList.remove('hidden');
@@ -3675,6 +3729,17 @@
         role: null,
         roomIncludeBots: true,
         myId: 'p_' + Math.random().toString(36).slice(2, 10),
+        myNickKey: null,
+        nickToKey(name) {
+          return 'u_' + Array.from(String(name || '').trim().toLowerCase()).map((c) => c.codePointAt(0).toString(16)).join('_');
+        },
+        syncSavedProgressToRoom() {
+          if (!this.roomRef || this.role !== 'STUDENT' || !this.myNickKey) return;
+          this.roomRef.child('savedProgress/' + this.myNickKey).update({
+            saveData: JSON.parse(JSON.stringify(saveData)),
+            updatedAt: Date.now()
+          }).catch(() => {});
+        },
         roomRef: null,
         metaListener: null,
         playerAddedListener: null,
@@ -4125,22 +4190,43 @@
             return;
           }
 
-          // 새 수업 방 입장 시 이전 반/학생 기록 자동 초기화 (같은 방 재접속은 유지)
-          const LAST_ROOM_KEY = 'star_io_last_room_code_v1';
-          try {
-            const prevRoom = localStorage.getItem(LAST_ROOM_KEY);
-            if (prevRoom !== code) {
-              saveData = createDefaultSave();
-              persistSaveData();
-              updateLobbyStats();
-              localStorage.setItem(LAST_ROOM_KEY, code);
-            }
-          } catch (e) {}
-
           this.leave();
           this.roomCode = code;
           this.role = 'STUDENT';
           this.roomRef = ref;
+          this.myNickKey = this.nickToKey(myName);
+
+          // 같은 방에 같은 닉네임으로 재입장 시 기존 진행상황 복구 + 악용 방지 페널티 부여
+          const savedEntry = roomVal.savedProgress && roomVal.savedProgress[this.myNickKey];
+          if (savedEntry && savedEntry.saveData) {
+            const restored = savedEntry.saveData;
+            saveData = Object.assign(createDefaultSave(), restored);
+            saveData.skills = Object.assign(createDefaultSave().skills, restored.skills || {});
+            saveData.stats = Object.assign(createDefaultSave().stats, restored.stats || {});
+            try { localStorage.setItem(SAVE_KEY, JSON.stringify(saveData)); } catch (e) {}
+            updateLobbyStats();
+
+            const nextReconn = (savedEntry.reconnectCount || 0) + 1;
+            this.roomRef.child('savedProgress/' + this.myNickKey).update({
+              reconnectCount: nextReconn,
+              updatedAt: Date.now()
+            }).catch(() => {});
+
+            // 악용 방지 페널티: 15초간 이동속도 -25% + 이번 출격 초기 질량 보너스 미적용
+            gameState.reconnectPenaltyRemaining = 15;
+            gameState.reconnectPenaltyNoStartMass = true;
+            showToast('⚠️ 재입장 감지: 기존 진행상황 복구 완료! (페널티: 15초간 이동속도 -25% · 초기질량 보너스 제외)', 'warn');
+          } else {
+            saveData = createDefaultSave();
+            try { localStorage.setItem(SAVE_KEY, JSON.stringify(saveData)); } catch (e) {}
+            updateLobbyStats();
+            this.roomRef.child('savedProgress/' + this.myNickKey).set({
+              name: myName,
+              saveData: JSON.parse(JSON.stringify(saveData)),
+              reconnectCount: 0,
+              updatedAt: Date.now()
+            }).catch(() => {});
+          }
           this.roomIncludeBots = roomVal.meta.includeBots !== false;
           this.roomDuration = roomVal.meta.duration || 900;
           this.lastStatus = null;
@@ -4452,7 +4538,7 @@
         }
       }, { passive: true });
 
-      canvas.addEventListener('touchmove', (e) => {
+      window.addEventListener('touchmove', (e) => {
         if (gameState.mode !== 'PLAYING') return;
         for (const t of e.changedTouches) {
           if (t.identifier === inputState.touchMoveId) {
@@ -4461,12 +4547,12 @@
         }
       }, { passive: true });
 
-      canvas.addEventListener('touchend', (e) => {
+      window.addEventListener('touchend', (e) => {
         for (const t of e.changedTouches) {
           if (t.identifier === inputState.touchMoveId) endJoystick();
         }
       });
-      canvas.addEventListener('touchcancel', (e) => {
+      window.addEventListener('touchcancel', (e) => {
         for (const t of e.changedTouches) {
           if (t.identifier === inputState.touchMoveId) endJoystick();
         }
@@ -4680,27 +4766,59 @@
       ControlLayoutManager.load();
       ControlLayoutManager.bindDrag();
 
-      // 스킬 버튼들
-      document.getElementById('btnSkillGravity').onclick = () => {
-        if (ControlLayoutManager.editing) return;
-        activateGravitySkill();
-      };
-
-      const btnBoost = document.getElementById('btnSkillBoost');
-      const startBoost = (e) => {
+      // 스킬 버튼들 (멀티터치 완벽 지원: 조이스틱 이동 중에도 동시 조작 가능)
+      const btnGravity = document.getElementById('btnSkillGravity');
+      btnGravity.addEventListener('touchstart', (e) => {
         if (ControlLayoutManager.editing) return;
         e.preventDefault();
-        if (saveData.skills.boostUnlocked > 0) inputState.boostHeld = true;
-        else showToast('🔒 부스터는 업그레이드 > 스킬 탭에서 해금하세요!', 'warn');
-      };
-      const stopBoost = () => { inputState.boostHeld = false; };
-      btnBoost.addEventListener('mousedown', startBoost);
-      btnBoost.addEventListener('touchstart', startBoost, { passive: false });
-      window.addEventListener('mouseup', stopBoost);
-      btnBoost.addEventListener('touchend', stopBoost);
-      btnBoost.addEventListener('touchcancel', stopBoost);
+        e.stopPropagation();
+        activateGravitySkill();
+      }, { passive: false });
+      btnGravity.addEventListener('mousedown', (e) => {
+        if (ControlLayoutManager.editing) return;
+        e.stopPropagation();
+        activateGravitySkill();
+      });
 
-      // 플레어 드래그 조준
+      const btnBoost = document.getElementById('btnSkillBoost');
+      btnBoost.addEventListener('touchstart', (e) => {
+        if (ControlLayoutManager.editing) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (saveData.skills.boostUnlocked > 0) {
+          const t = e.changedTouches[0];
+          inputState.boostTouchId = t.identifier;
+          inputState.boostHeld = true;
+        } else {
+          showToast('🔒 부스터는 업그레이드 > 스킬 탭에서 해금하세요!', 'warn');
+        }
+      }, { passive: false });
+      btnBoost.addEventListener('mousedown', (e) => {
+        if (ControlLayoutManager.editing) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (saveData.skills.boostUnlocked > 0) {
+          inputState.boostTouchId = null;
+          inputState.boostHeld = true;
+        } else {
+          showToast('🔒 부스터는 업그레이드 > 스킬 탭에서 해금하세요!', 'warn');
+        }
+      });
+      window.addEventListener('mouseup', () => {
+        if (inputState.boostTouchId === null) inputState.boostHeld = false;
+      });
+      const endBoostTouch = (e) => {
+        for (const t of e.changedTouches) {
+          if (t.identifier === inputState.boostTouchId) {
+            inputState.boostTouchId = null;
+            inputState.boostHeld = false;
+          }
+        }
+      };
+      window.addEventListener('touchend', endBoostTouch);
+      window.addEventListener('touchcancel', endBoostTouch);
+
+      // 플레어 드래그 조준 (터치 ID 분리로 조이스틱과 동시 조작)
       const btnFlare = document.getElementById('btnSkillFlare');
       const startFlareAim = (x, y, id = null) => {
         if (ControlLayoutManager.editing) return;
@@ -4715,27 +4833,77 @@
         inputState.flareAngle = inputState.moveActive ? inputState.moveAngle : 0;
       };
       btnFlare.addEventListener('touchstart', (e) => {
+        if (ControlLayoutManager.editing) return;
         e.preventDefault();
+        e.stopPropagation();
         const t = e.changedTouches[0];
         startFlareAim(t.clientX, t.clientY, t.identifier);
       }, { passive: false });
-      btnFlare.addEventListener('touchmove', (e) => {
-        if (!inputState.flareAiming) return;
+      btnFlare.addEventListener('mousedown', (e) => {
+        if (ControlLayoutManager.editing) return;
+        e.stopPropagation();
+        startFlareAim(e.clientX, e.clientY, null);
+      });
+
+      // 반물질 드래그 조준 (터치 ID 분리로 조이스틱과 동시 조작)
+      const btnAnti = document.getElementById('btnSkillAntimatter');
+      const startAntiAim = (x, y, id = null) => {
+        if (ControlLayoutManager.editing) return;
+        if (!gameState.player || gameState.player.antimatterAmmo <= 0) {
+          showToast('⚛️ 보유한 반물질이 없습니다! 블랙홀 출현 시 맵에서 획득하세요.', 'warn');
+          return;
+        }
+        inputState.antiAiming = true;
+        inputState.antiTouchId = id;
+        inputState.antiOriginX = x;
+        inputState.antiOriginY = y;
+        inputState.antiAngle = inputState.moveActive ? inputState.moveAngle : 0;
+      };
+      btnAnti.addEventListener('touchstart', (e) => {
+        if (ControlLayoutManager.editing) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const t = e.changedTouches[0];
+        startAntiAim(t.clientX, t.clientY, t.identifier);
+      }, { passive: false });
+      btnAnti.addEventListener('mousedown', (e) => {
+        if (ControlLayoutManager.editing) return;
+        e.stopPropagation();
+        startAntiAim(e.clientX, e.clientY, null);
+      });
+
+      // 전역 멀티터치 드래그/발사 핸들러 (플레어 & 반물질)
+      window.addEventListener('touchmove', (e) => {
         for (const t of e.changedTouches) {
-          if (t.identifier === inputState.flareTouchId) {
+          if (inputState.flareAiming && t.identifier === inputState.flareTouchId) {
             const dx = t.clientX - inputState.flareOriginX;
             const dy = t.clientY - inputState.flareOriginY;
             if (Math.hypot(dx, dy) > 8) inputState.flareAngle = Math.atan2(dy, dx);
           }
+          if (inputState.antiAiming && t.identifier === inputState.antiTouchId) {
+            const dx = t.clientX - inputState.antiOriginX;
+            const dy = t.clientY - inputState.antiOriginY;
+            if (Math.hypot(dx, dy) > 8) inputState.antiAngle = Math.atan2(dy, dx);
+          }
         }
       }, { passive: true });
-      btnFlare.addEventListener('touchend', () => {
-        if (inputState.flareAiming) {
-          inputState.flareAiming = false;
-          fireFlare(inputState.flareAngle);
+      const endAimTouch = (e) => {
+        for (const t of e.changedTouches) {
+          if (inputState.flareAiming && t.identifier === inputState.flareTouchId) {
+            inputState.flareAiming = false;
+            inputState.flareTouchId = null;
+            fireFlare(inputState.flareAngle);
+          }
+          if (inputState.antiAiming && t.identifier === inputState.antiTouchId) {
+            inputState.antiAiming = false;
+            inputState.antiTouchId = null;
+            fireAntimatter(inputState.antiAngle);
+          }
         }
-      });
-      btnFlare.addEventListener('mousedown', (e) => startFlareAim(e.clientX, e.clientY));
+      };
+      window.addEventListener('touchend', endAimTouch);
+      window.addEventListener('touchcancel', endAimTouch);
+
       window.addEventListener('mousemove', (e) => {
         if (inputState.flareAiming && inputState.flareTouchId === null) {
           const dx = e.clientX - inputState.flareOriginX;
@@ -4758,43 +4926,6 @@
           fireAntimatter(inputState.antiAngle);
         }
       });
-
-      // 반물질 드래그 조준
-      const btnAnti = document.getElementById('btnSkillAntimatter');
-      const startAntiAim = (x, y, id = null) => {
-        if (ControlLayoutManager.editing) return;
-        if (!gameState.player || gameState.player.antimatterAmmo <= 0) {
-          showToast('⚛️ 보유한 반물질이 없습니다! 블랙홀 출현 시 맵에서 획득하세요.', 'warn');
-          return;
-        }
-        inputState.antiAiming = true;
-        inputState.antiTouchId = id;
-        inputState.antiOriginX = x;
-        inputState.antiOriginY = y;
-        inputState.antiAngle = inputState.moveActive ? inputState.moveAngle : 0;
-      };
-      btnAnti.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        const t = e.changedTouches[0];
-        startAntiAim(t.clientX, t.clientY, t.identifier);
-      }, { passive: false });
-      btnAnti.addEventListener('touchmove', (e) => {
-        if (!inputState.antiAiming) return;
-        for (const t of e.changedTouches) {
-          if (t.identifier === inputState.antiTouchId) {
-            const dx = t.clientX - inputState.antiOriginX;
-            const dy = t.clientY - inputState.antiOriginY;
-            if (Math.hypot(dx, dy) > 8) inputState.antiAngle = Math.atan2(dy, dx);
-          }
-        }
-      }, { passive: true });
-      btnAnti.addEventListener('touchend', () => {
-        if (inputState.antiAiming) {
-          inputState.antiAiming = false;
-          fireAntimatter(inputState.antiAngle);
-        }
-      });
-      btnAnti.addEventListener('mousedown', (e) => startAntiAim(e.clientX, e.clientY));
 
       // 로비 파일 직접 불러오기
       document.getElementById('lobbyQuizFileInput').addEventListener('change', (e) => {
@@ -4829,22 +4960,14 @@
         startNewMatch('SINGLE');
       };
       document.getElementById('btnLobbyUpgrade').onclick = () => openUpgradeModal('evolution', false);
-      document.getElementById('btnHudUpgrade').onclick = () => openUpgradeModal('evolution', false);
-      document.getElementById('btnHudExit').onclick = () => {
-        gameState.mode = 'LOBBY';
-        gameState.player = null;
-        gameState.gravityWaves = [];
-        if (gameState.playType === 'MULTI') MultiplayerBridge.leave();
-        document.getElementById('gameHUD').classList.add('hidden');
-        document.getElementById('lobbyModal').classList.remove('hidden');
-        updateLobbyStats();
-      };
+
+
 
       // 환생 버튼
       document.getElementById('btnHudRebirth').onclick = () => {
         const p = gameState.player;
         if (!p) return;
-        const info = getRebirthTargetInfo(p.stageId);
+        const info = getRebirthTargetInfo(p.stageId, p.mass);
         if (!info || p.rebirthDustCount < REBIRTH_DUST_REQUIRED) return;
         gameState.mode = 'PAUSED';
         document.getElementById('rebirthTitle').textContent = info.title;
@@ -4887,7 +5010,17 @@
       document.getElementById('btnCloseSkill').onclick = closeUpgradeModal;
 
       // 퀴즈 닫기 & 주관식 제출
-      document.getElementById('btnCloseQuiz').onclick = () => document.getElementById('quizModal').classList.add('hidden');
+      document.getElementById('btnCloseQuiz').onclick = () => {
+        document.getElementById('quizModal').classList.add('hidden');
+        if (gameState.mode === 'ENTRY_GATE') {
+          gameState.mode = 'LOBBY';
+          if (gameState.pendingPlayType === 'MULTI') {
+            document.getElementById('multiModal').classList.remove('hidden');
+          } else {
+            document.getElementById('lobbyModal').classList.remove('hidden');
+          }
+        }
+      };
       const submitShort = () => {
         if (!activeQuizCtx || activeQuizCtx.answered) return;
         const userAns = document.getElementById('quizShortInput').value.replace(/\s+/g, '').toLowerCase();
@@ -4977,7 +5110,7 @@
         MultiplayerBridge.joinStudentRoom(document.getElementById('roomCodeInput').value);
       };
       document.getElementById('btnLeaveRoom').onclick = () => MultiplayerBridge.leave();
-      document.getElementById('btnStudentWaitUpgrade').onclick = () => openUpgradeModal('evolution', false);
+
 
       /* =====================================================================
          16. 메인 애니메이션 루프 및 초기화
