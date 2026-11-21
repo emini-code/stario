@@ -2,7 +2,10 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>STAR.IO : 별의 일생</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -22,11 +25,20 @@
       padding: 0;
       width: 100%;
       height: 100%;
+      height: 100dvh;
       overflow: hidden;
       background-color: #030712;
       font-family: 'Noto Sans KR', sans-serif;
       color: #f8fafc;
       touch-action: none;
+    }
+    html.pseudo-fullscreen, body.pseudo-fullscreen {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100dvh;
+      overflow: hidden;
+      overscroll-behavior: none;
     }
     input, textarea {
       user-select: text;
@@ -115,7 +127,7 @@
   <!-- ==================== 토스트 알림 ==================== -->
   <div id="toastHost" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[80] flex flex-col items-center gap-2 pointer-events-none px-4"></div>
 
-  <!-- ==================== 전역 우상단 컨트롤 (소리 / 조작키 설정 / 전체화면) ==================== -->
+  <!-- ==================== 전역 우상단 컨트롤 (소리 / 조작키 설정 / 전체화면 · 해제) ==================== -->
   <div id="globalTopRightControls" class="fixed top-3 right-3 z-[75] flex items-center gap-1.5">
     <button id="btnToggleSound" type="button" title="소리 켜기/끄기" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-bold text-emerald-300 transition">
       🔊 소리 ON
@@ -123,8 +135,11 @@
     <button id="btnGlobalControlConfig" type="button" title="조작키 설정" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-extrabold text-cyan-300 transition">
       🎛️ 조작설정
     </button>
-    <button type="button" class="btn-toggle-fullscreen px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-bold text-slate-200 transition">
+    <button id="btnEnterFullscreen" type="button" title="전체화면 켜기" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-bold text-slate-200 transition">
       ⛶ 전체화면
+    </button>
+    <button id="btnExitFullscreen" type="button" title="전체화면 해제" class="hidden px-2.5 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-500 border border-rose-300/70 text-[11px] font-extrabold text-white shadow-lg transition">
+      ✕ 전체화면 해제
     </button>
   </div>
 
@@ -145,7 +160,7 @@
       <div class="bg-slate-900/75 border border-slate-700/70 rounded-2xl p-3.5 flex flex-col gap-3">
         <div>
           <label class="block text-xs font-bold text-slate-400 mb-1">내 별 이름 (닉네임)</label>
-          <input id="playerNameInput" type="text" maxlength="12" value="별의 여행자" placeholder="닉네임 입력"
+          <input id="playerNameInput" type="text" maxlength="12" value="" placeholder="닉네임 입력"
             class="w-full bg-slate-950/80 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-sky-400" />
         </div>
 
@@ -444,9 +459,26 @@
         <option value="OVERVIEW">🌌 우주 전체 조망</option>
       </select>
       <span id="spectateTimerText" class="font-orbitron text-xs font-bold text-amber-300">15:00</span>
+      <button id="btnToggleSpectateRank" type="button" class="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 font-extrabold text-xs transition">
+        🏆 랭킹 열기
+      </button>
       <button id="btnExitSpectate" class="px-3.5 py-1.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-extrabold text-xs">
         📋 관제실로 복귀
       </button>
+    </div>
+  </div>
+
+  <!-- 교사 관전 모드용 실시간 랭킹창 -->
+  <div id="teacherSpectateRankingPanel" class="hidden fixed top-16 right-3 sm:right-4 z-40 w-64 sm:w-72 glass-panel rounded-2xl p-3.5 border border-amber-400/40 flex flex-col gap-2 max-h-[70vh]">
+    <div class="flex items-center justify-between border-b border-slate-700/70 pb-2">
+      <div class="flex items-center gap-2">
+        <span class="text-xs sm:text-sm font-black text-amber-300">🏆 실시간 우주 랭킹</span>
+        <span id="spectateRankCount" class="font-orbitron text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300">0명</span>
+      </div>
+      <button id="btnCloseSpectateRank" type="button" title="랭킹창 닫기" class="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center">✕</button>
+    </div>
+    <div id="spectateRankList" class="flex flex-col gap-1.5 overflow-y-auto custom-scroll pr-1 text-xs">
+      <div class="py-6 text-center text-slate-400 text-[11px]">접속 중인 학생이 없습니다.</div>
     </div>
   </div>
 
@@ -953,8 +985,8 @@
 
       function resizeCanvas() {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        viewW = window.innerWidth;
-        viewH = window.innerHeight;
+        viewW = window.visualViewport ? Math.round(window.visualViewport.width) : window.innerWidth;
+        viewH = window.visualViewport ? Math.round(window.visualViewport.height) : window.innerHeight;
         canvas.width = Math.floor(viewW * dpr);
         canvas.height = Math.floor(viewH * dpr);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -966,38 +998,138 @@
       resizeCanvas();
 
       /* =====================================================================
-         전체화면(Fullscreen) 토글 매니저
+         전체화면(Fullscreen) 매니저 (PC · Android · iOS 모바일 완벽 대응)
          ===================================================================== */
       const FullscreenManager = {
-        isFullscreen() {
-          return !!(document.fullscreenElement || document.webkitFullscreenElement);
+        pseudoFullscreen: false,
+        isNativeFullscreen() {
+          return !!(
+            document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.mozFullScreenElement ||
+            document.msFullscreenElement
+          );
         },
-        toggle() {
-          const docEl = document.documentElement;
-          if (!this.isFullscreen()) {
-            const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.msRequestFullscreen;
-            if (req) {
-              Promise.resolve(req.call(docEl)).catch(() => {
-                showToast('이 브라우저에서는 전체화면 전환이 제한되어 있습니다.', 'warn');
-              });
+        isFullscreen() {
+          return this.isNativeFullscreen() || this.pseudoFullscreen;
+        },
+        isIOS() {
+          return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        },
+        async tryNativeEnter(el) {
+          if (!el) return false;
+          try {
+            if (el.requestFullscreen) {
+              try {
+                await el.requestFullscreen({ navigationUI: 'hide' });
+                return true;
+              } catch (optErr) {
+                await el.requestFullscreen();
+                return true;
+              }
             }
-          } else {
-            const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
-            if (exit) Promise.resolve(exit.call(document)).catch(() => {});
+            if (el.webkitRequestFullscreen) {
+              await Promise.resolve(el.webkitRequestFullscreen());
+              return true;
+            }
+            if (el.mozRequestFullScreen) {
+              await Promise.resolve(el.mozRequestFullScreen());
+              return true;
+            }
+            if (el.msRequestFullscreen) {
+              await Promise.resolve(el.msRequestFullscreen());
+              return true;
+            }
+          } catch (e) {
+            return false;
           }
+          return false;
+        },
+        async enter() {
+          // 1) 네이티브 Fullscreen API 시도 (Android Chrome / Samsung Internet / iPad / PC)
+          let entered = await this.tryNativeEnter(document.documentElement);
+          if (!entered) {
+            entered = await this.tryNativeEnter(document.body);
+          }
+
+          if (entered || this.isNativeFullscreen()) {
+            this.pseudoFullscreen = false;
+            document.documentElement.classList.remove('pseudo-fullscreen');
+            document.body.classList.remove('pseudo-fullscreen');
+            this.updateButtons();
+            setTimeout(() => {
+              resizeCanvas();
+              if (typeof ControlLayoutManager !== 'undefined') ControlLayoutManager.applyAll();
+            }, 150);
+            return;
+          }
+
+          // 2) iOS Safari / 인앱 브라우저 등 Fullscreen API 미지원 모바일 환경: 의사 전체화면 모드
+          this.pseudoFullscreen = true;
+          document.documentElement.classList.add('pseudo-fullscreen');
+          document.body.classList.add('pseudo-fullscreen');
+          window.scrollTo(0, 1);
+          this.updateButtons();
+          resizeCanvas();
+          if (typeof ControlLayoutManager !== 'undefined') ControlLayoutManager.applyAll();
+
+          if (this.isIOS()) {
+            showToast('📱 모바일 전체화면 적용! (주소창 숨김은 공유 → 홈 화면에 추가)', 'info');
+          } else {
+            showToast('📱 모바일 전체화면 모드로 전환되었습니다.', 'info');
+          }
+        },
+        async exit() {
+          this.pseudoFullscreen = false;
+          document.documentElement.classList.remove('pseudo-fullscreen');
+          document.body.classList.remove('pseudo-fullscreen');
+
+          if (this.isNativeFullscreen()) {
+            const exitFn =
+              document.exitFullscreen ||
+              document.webkitExitFullscreen ||
+              document.mozCancelFullScreen ||
+              document.msExitFullscreen;
+            if (exitFn) {
+              try { await Promise.resolve(exitFn.call(document)); } catch (e) {}
+            }
+          }
+          this.updateButtons();
+          setTimeout(() => {
+            resizeCanvas();
+            if (typeof ControlLayoutManager !== 'undefined') ControlLayoutManager.applyAll();
+          }, 150);
         },
         updateButtons() {
           const active = this.isFullscreen();
-          document.querySelectorAll('.btn-toggle-fullscreen').forEach((btn) => {
-            btn.textContent = active ? '🗗 창모드' : '⛶ 전체화면';
-          });
+          const btnEnter = document.getElementById('btnEnterFullscreen');
+          const btnExit = document.getElementById('btnExitFullscreen');
+          if (btnEnter) btnEnter.classList.toggle('hidden', active);
+          if (btnExit) btnExit.classList.toggle('hidden', !active);
         }
       };
-      document.addEventListener('fullscreenchange', () => FullscreenManager.updateButtons());
-      document.addEventListener('webkitfullscreenchange', () => FullscreenManager.updateButtons());
-      document.querySelectorAll('.btn-toggle-fullscreen').forEach((btn) => {
-        btn.addEventListener('click', () => FullscreenManager.toggle());
+
+      ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach((ev) => {
+        document.addEventListener(ev, () => {
+          FullscreenManager.updateButtons();
+          resizeCanvas();
+          if (typeof ControlLayoutManager !== 'undefined') ControlLayoutManager.applyAll();
+        });
       });
+
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', () => {
+          resizeCanvas();
+          if (typeof ControlLayoutManager !== 'undefined') ControlLayoutManager.applyAll();
+        });
+      }
+
+      const btnEnterFs = document.getElementById('btnEnterFullscreen');
+      const btnExitFs = document.getElementById('btnExitFullscreen');
+      if (btnEnterFs) btnEnterFs.addEventListener('click', () => FullscreenManager.enter());
+      if (btnExitFs) btnExitFs.addEventListener('click', () => FullscreenManager.exit());
+      FullscreenManager.updateButtons();
       SoundFX.updateButton();
       const btnSound = document.getElementById('btnToggleSound');
       if (btnSound) btnSound.addEventListener('click', () => SoundFX.toggleMute());
@@ -1010,7 +1142,10 @@
         blackHoleAppeared: false,
         dustPalette: DUST_PALETTES[0],
         bgStars: [],
+        bgFarStars: [],
+        bgNebulae: [],
         dusts: [],
+        dustMap: new Map(),
         antimatters: [],
         antimatterSpawnTimer: 0,
         bots: [],
@@ -1152,27 +1287,81 @@
          7. 우주 오브젝트 생성 및 매치 초기화
          ===================================================================== */
       function initBgStars() {
+        const starColors = ['#ffffff', '#e0f2fe', '#bae6fd', '#fef3c7', '#e9d5ff', '#fbcfe8'];
+
+        // 1) 월드 공간 별무리 (반짝임 + 일부 4각 십자 광채)
         gameState.bgStars = [];
-        for (let i = 0; i < 240; i++) {
+        for (let i = 0; i < 680; i++) {
+          const isBright = i < 42;
           gameState.bgStars.push({
-            x: (Math.random() - 0.5) * ARENA_RADIUS * 2.5,
-            y: (Math.random() - 0.5) * ARENA_RADIUS * 2.5,
-            r: 0.8 + Math.random() * 1.9,
-            a: 0.25 + Math.random() * 0.65
+            x: (Math.random() - 0.5) * ARENA_RADIUS * 2.6,
+            y: (Math.random() - 0.5) * ARENA_RADIUS * 2.6,
+            r: isBright ? (1.8 + Math.random() * 1.6) : (0.6 + Math.random() * 1.4),
+            a: isBright ? (0.65 + Math.random() * 0.35) : (0.2 + Math.random() * 0.55),
+            color: starColors[Math.floor(Math.random() * starColors.length)],
+            twinklePhase: Math.random() * Math.PI * 2,
+            twinkleSpeed: 0.8 + Math.random() * 2.2,
+            sparkle: isBright
+          });
+        }
+
+        // 2) 원거리 패럴랙스 별 (화면 기준 시차 이동으로 입체감 연출)
+        gameState.bgFarStars = [];
+        for (let i = 0; i < 160; i++) {
+          gameState.bgFarStars.push({
+            u: Math.random(),
+            v: Math.random(),
+            r: 0.6 + Math.random() * 1.3,
+            a: 0.2 + Math.random() * 0.5,
+            color: starColors[Math.floor(Math.random() * starColors.length)],
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+
+        // 3) 은은한 우주 성운 구름 (월드 공간)
+        const nebulaThemes = [
+          ['rgba(79, 70, 229, 0.13)',  'rgba(30, 27, 75, 0)'],   // 인디고
+          ['rgba(14, 165, 233, 0.11)', 'rgba(12, 74, 110, 0)'],  // 시안 블루
+          ['rgba(168, 85, 247, 0.11)', 'rgba(88, 28, 135, 0)'],  // 퍼플
+          ['rgba(236, 72, 153, 0.08)', 'rgba(131, 24, 67, 0)'],  // 로즈 핑크
+          ['rgba(20, 184, 166, 0.09)', 'rgba(19, 78, 74, 0)']    // 틸 에메랄드
+        ];
+        gameState.bgNebulae = [];
+        for (let i = 0; i < 16; i++) {
+          const ang = (i / 16) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+          const dist = Math.random() * (ARENA_RADIUS * 0.95);
+          const theme = nebulaThemes[i % nebulaThemes.length];
+          gameState.bgNebulae.push({
+            x: Math.cos(ang) * dist,
+            y: Math.sin(ang) * dist,
+            r: 420 + Math.random() * 520,
+            c0: theme[0],
+            c1: theme[1]
           });
         }
       }
 
-      function spawnOneDust() {
+      function createRandomDustPayload(pal = gameState.dustPalette) {
         const angle = Math.random() * Math.PI * 2;
         const dist = Math.sqrt(Math.random()) * (ARENA_RADIUS - 80);
-        const pal = gameState.dustPalette;
+        const palette = pal && pal.length ? pal : DUST_PALETTES[0];
+        return {
+          x: Math.round(Math.cos(angle) * dist),
+          y: Math.round(Math.sin(angle) * dist),
+          r: Number((4.5 + Math.random() * 3.5).toFixed(1)),
+          v: Number((4 + Math.random() * 4).toFixed(1)),
+          c: palette[Math.floor(Math.random() * palette.length)]
+        };
+      }
+
+      function spawnOneDust() {
+        const p = createRandomDustPayload(gameState.dustPalette);
         gameState.dusts.push({
-          x: Math.cos(angle) * dist,
-          y: Math.sin(angle) * dist,
-          r: 4.5 + Math.random() * 3.5,
-          value: 4 + Math.random() * 4,
-          color: pal[Math.floor(Math.random() * pal.length)]
+          x: p.x,
+          y: p.y,
+          r: p.r,
+          value: p.v,
+          color: p.c
         });
       }
 
@@ -1254,8 +1443,11 @@
         gameState.timeRemaining = playType === 'MULTI' ? (gameState.matchDurationSec || MATCH_DURATION) : MATCH_DURATION;
         gameState.elapsed = 0;
         gameState.blackHoleAppeared = false;
-        gameState.dustPalette = DUST_PALETTES[Math.floor(Math.random() * DUST_PALETTES.length)];
-        gameState.dusts = [];
+        if (playType !== 'MULTI') {
+          gameState.dustPalette = DUST_PALETTES[Math.floor(Math.random() * DUST_PALETTES.length)];
+          gameState.dusts = [];
+          gameState.dustMap.clear();
+        }
         gameState.antimatters = [];
         gameState.antimatterSpawnTimer = 0;
         gameState.bots = [];
@@ -1266,7 +1458,9 @@
         document.getElementById('minimapBhBadge').classList.add('hidden');
 
         initBgStars();
-        for (let i = 0; i < MAX_DUST_COUNT; i++) spawnOneDust();
+        if (playType !== 'MULTI') {
+          for (let i = 0; i < MAX_DUST_COUNT; i++) spawnOneDust();
+        }
 
         const startAsProtostar = !!saveData.startProtostarUnlocked;
         const startMass = startAsProtostar
@@ -1532,13 +1726,17 @@
             b.y *= k;
           }
 
-          // 봇 성간 물질 흡수
-          for (let dIdx = gameState.dusts.length - 1; dIdx >= 0; dIdx--) {
-            const du = gameState.dusts[dIdx];
-            if (Math.hypot(du.x - b.x, du.y - b.y) < r + du.r + 6) {
-              b.mass += du.value * 0.9;
-              gameState.dusts.splice(dIdx, 1);
-              spawnOneDust();
+          // 봇 성간 물질 흡수 (멀티플레이에서는 플레이어 간 공유 오브젝트 경쟁을 위해 봇은 자체 성장)
+          if (gameState.playType === 'MULTI') {
+            b.mass += 2.6 * dt;
+          } else {
+            for (let dIdx = gameState.dusts.length - 1; dIdx >= 0; dIdx--) {
+              const du = gameState.dusts[dIdx];
+              if (Math.hypot(du.x - b.x, du.y - b.y) < r + du.r + 6) {
+                b.mass += du.value * 0.9;
+                gameState.dusts.splice(dIdx, 1);
+                spawnOneDust();
+              }
             }
           }
 
@@ -1675,8 +1873,12 @@
                   showToast('♻️ 환생 에너지가 가득 찼습니다! 좌상단 [환생하기] 버튼을 눌러 다음 진화 루트를 해금하세요!', 'success');
                 }
               }
-              gameState.dusts.splice(i, 1);
-              spawnOneDust();
+              if (gameState.playType === 'MULTI' && du.id) {
+                MultiplayerBridge.respawnSharedDust(du);
+              } else {
+                gameState.dusts.splice(i, 1);
+                spawnOneDust();
+              }
               SoundFX.eat();
               checkPlayerAutoEvolution();
             }
@@ -1942,28 +2144,98 @@
       }
 
       function renderScene() {
-        ctx.fillStyle = '#030712';
+        const nowSec = performance.now() * 0.001;
+
+        // 1) 깊은 우주 그라데이션 배경
+        const bgGrad = ctx.createRadialGradient(
+          viewW * 0.5, viewH * 0.45, Math.min(viewW, viewH) * 0.05,
+          viewW * 0.5, viewH * 0.5, Math.max(viewW, viewH) * 0.85
+        );
+        bgGrad.addColorStop(0, '#0b122b');
+        bgGrad.addColorStop(0.5, '#060a1a');
+        bgGrad.addColorStop(1, '#02040a');
+        ctx.fillStyle = bgGrad;
         ctx.fillRect(0, 0, viewW, viewH);
+
+        // 2) 원거리 패럴랙스 별 (카메라 이동에 따라 느리게 흐르는 은하수 느낌)
+        const pxOff = gameState.camera.x * 0.08;
+        const pyOff = gameState.camera.y * 0.08;
+        for (const fs of gameState.bgFarStars) {
+          let sx = ((fs.u * viewW - pxOff) % viewW + viewW) % viewW;
+          let sy = ((fs.v * viewH - pyOff) % viewH + viewH) % viewH;
+          const tw = 0.65 + 0.35 * Math.sin(nowSec * 1.4 + fs.phase);
+          ctx.globalAlpha = fs.a * tw;
+          ctx.fillStyle = fs.color;
+          ctx.beginPath();
+          ctx.arc(sx, sy, fs.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
 
         ctx.save();
         ctx.translate(viewW / 2, viewH / 2);
         ctx.scale(gameState.camera.zoom, gameState.camera.zoom);
         ctx.translate(-gameState.camera.x, -gameState.camera.y);
 
-        // 배경 별
-        for (const s of gameState.bgStars) {
-          ctx.fillStyle = `rgba(226, 232, 240, ${s.a})`;
+        // 3) 우주 성운 가스 구름
+        for (const nb of gameState.bgNebulae) {
+          const nGrad = ctx.createRadialGradient(nb.x, nb.y, nb.r * 0.08, nb.x, nb.y, nb.r);
+          nGrad.addColorStop(0, nb.c0);
+          nGrad.addColorStop(1, nb.c1);
+          ctx.fillStyle = nGrad;
           ctx.beginPath();
-          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          ctx.arc(nb.x, nb.y, nb.r, 0, Math.PI * 2);
           ctx.fill();
         }
 
-        // 경기장 경계선
-        ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-        ctx.lineWidth = 6;
+        // 4) 은은한 우주 동심원 궤도선 & 중심 십자선 (이동 속도감 제공)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.055)';
+        ctx.lineWidth = 2;
+        for (let rr = 650; rr < ARENA_RADIUS; rr += 650) {
+          ctx.beginPath();
+          ctx.arc(0, 0, rr, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.beginPath();
+        ctx.moveTo(-ARENA_RADIUS, 0); ctx.lineTo(ARENA_RADIUS, 0);
+        ctx.moveTo(0, -ARENA_RADIUS); ctx.lineTo(0, ARENA_RADIUS);
+        ctx.stroke();
+        ctx.restore();
+
+        // 5) 월드 공간 반짝이는 별무리
+        for (const s of gameState.bgStars) {
+          const tw = 0.6 + 0.4 * Math.sin(nowSec * s.twinkleSpeed + s.twinklePhase);
+          ctx.globalAlpha = s.a * tw;
+          ctx.fillStyle = s.color;
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          ctx.fill();
+          if (s.sparkle) {
+            const len = s.r * 3.4 * tw;
+            ctx.strokeStyle = s.color;
+            ctx.lineWidth = 0.9;
+            ctx.beginPath();
+            ctx.moveTo(s.x - len, s.y); ctx.lineTo(s.x + len, s.y);
+            ctx.moveTo(s.x, s.y - len); ctx.lineTo(s.x, s.y + len);
+            ctx.stroke();
+          }
+        }
+        ctx.globalAlpha = 1;
+
+        // 6) 경기장 외곽 경계선 (네온 우주 링)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.14)';
+        ctx.lineWidth = 22;
         ctx.beginPath();
         ctx.arc(0, 0, ARENA_RADIUS, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, ARENA_RADIUS, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
 
         // 성간 물질 (단순 원 형태)
         for (const du of gameState.dusts) {
@@ -1996,7 +2268,7 @@
         }
 
         // 중력장(E) 수축 링 이펙트
-        if (gameState.player) {
+        if (gameState.player && (gameState.mode === 'PLAYING' || gameState.mode === 'PAUSED')) {
           for (const gw of gameState.gravityWaves) {
             const p = gameState.player;
             const prog = 1 - gw.duration / gw.maxDuration;
@@ -2053,7 +2325,7 @@
             if (rp.alive && nowMs - (rp.updatedAt || 0) <= 15000) entities.push(rp);
           });
         }
-        if (gameState.player && gameState.mode !== 'RUN_OVER') entities.push(gameState.player);
+        if (gameState.player && (gameState.mode === 'PLAYING' || gameState.mode === 'PAUSED')) entities.push(gameState.player);
         entities.sort((a, b) => a.mass - b.mass);
         for (const ent of entities) drawEntity(ent);
 
@@ -3303,6 +3575,9 @@
         roomRef: null,
         metaListener: null,
         playersListener: null,
+        dustAddedListener: null,
+        dustChangedListener: null,
+        dustRemovedListener: null,
         teacherTimerInterval: null,
         roomStartedAt: null,
         roomDuration: 900,
@@ -3318,6 +3593,75 @@
         getInviteUrl(code) {
           const base = `${window.location.origin}${window.location.pathname}`;
           return `${base}?room=${code}`;
+        },
+
+        buildInitialSharedDusts(pal) {
+          const obj = {};
+          for (let i = 0; i < MAX_DUST_COUNT; i++) {
+            obj['d_' + i] = createRandomDustPayload(pal);
+          }
+          return obj;
+        },
+
+        attachSharedDustListeners() {
+          if (!this.roomRef) return;
+          const dustsRef = this.roomRef.child('dusts');
+          if (this.dustAddedListener) dustsRef.off('child_added', this.dustAddedListener);
+          if (this.dustChangedListener) dustsRef.off('child_changed', this.dustChangedListener);
+          if (this.dustRemovedListener) dustsRef.off('child_removed', this.dustRemovedListener);
+
+          gameState.dusts = [];
+          gameState.dustMap.clear();
+
+          const applyDust = (id, val) => {
+            if (!val) return;
+            const existing = gameState.dustMap.get(id);
+            if (existing) {
+              existing.x = Number(val.x) || 0;
+              existing.y = Number(val.y) || 0;
+              existing.r = Number(val.r) || 6;
+              existing.value = Number(val.v) || 5;
+              existing.color = val.c || gameState.dustPalette[0];
+            } else {
+              const item = {
+                id,
+                x: Number(val.x) || 0,
+                y: Number(val.y) || 0,
+                r: Number(val.r) || 6,
+                value: Number(val.v) || 5,
+                color: val.c || gameState.dustPalette[0]
+              };
+              gameState.dustMap.set(id, item);
+              gameState.dusts.push(item);
+            }
+          };
+
+          this.dustAddedListener = (snap) => applyDust(snap.key, snap.val());
+          this.dustChangedListener = (snap) => applyDust(snap.key, snap.val());
+          this.dustRemovedListener = (snap) => {
+            const id = snap.key;
+            if (!gameState.dustMap.has(id)) return;
+            gameState.dustMap.delete(id);
+            const idx = gameState.dusts.findIndex((d) => d.id === id);
+            if (idx >= 0) gameState.dusts.splice(idx, 1);
+          };
+
+          dustsRef.on('child_added', this.dustAddedListener);
+          dustsRef.on('child_changed', this.dustChangedListener);
+          dustsRef.on('child_removed', this.dustRemovedListener);
+        },
+
+        respawnSharedDust(du) {
+          if (!this.roomRef || !du || !du.id) return;
+          const next = createRandomDustPayload(gameState.dustPalette);
+          // 로컬 즉시 이동 (중복 획득 방지 및 즉각 반응성 확보)
+          du.x = next.x;
+          du.y = next.y;
+          du.r = next.r;
+          du.value = next.v;
+          du.color = next.c;
+          // Firebase에 반영하여 같은 방의 모든 플레이어와 교사 관전 화면에 동시 동기화
+          this.roomRef.child('dusts/' + du.id).set(next).catch(() => {});
         },
 
         async createTeacherRoom() {
@@ -3338,6 +3682,10 @@
           this.roomDuration = TeacherQuizManager.selectedDuration || 900;
           this.roomIncludeBots = !!document.getElementById('chkTeacherBots').checked;
 
+          const paletteIdx = Math.floor(Math.random() * DUST_PALETTES.length);
+          gameState.dustPalette = DUST_PALETTES[paletteIdx];
+          const initialDusts = this.buildInitialSharedDusts(gameState.dustPalette);
+
           this.roomRef = fbDb.ref('rooms/' + code);
           try {
             await this.roomRef.set({
@@ -3347,9 +3695,11 @@
                 startedAt: null,
                 duration: this.roomDuration,
                 includeBots: this.roomIncludeBots,
+                paletteIdx,
                 quizTitles: titles
               },
               quizData: merged,
+              dusts: initialDusts,
               players: {}
             });
           } catch (err) {
@@ -3372,6 +3722,7 @@
           document.getElementById('teacherMatchTimer').textContent = formatTime(this.roomDuration);
 
           this.attachTeacherListeners();
+          this.attachSharedDustListeners();
           showToast(`✨ 수업 방 [${code}]이 생성되었습니다! 학생들에게 QR코드를 보여주세요.`, 'success');
         },
 
@@ -3445,6 +3796,7 @@
               selEl.innerHTML = optionsHtml;
               selEl.value = [...selEl.options].some((o) => o.value === prevSel) ? prevSel : 'TOP';
             }
+            this.renderSpectateRanking(list);
           };
           playersRef.on('value', this.playersListener);
 
@@ -3495,22 +3847,74 @@
           }, 500);
         },
 
+        toggleSpectateRanking(forceState = null) {
+          const panel = document.getElementById('teacherSpectateRankingPanel');
+          const btn = document.getElementById('btnToggleSpectateRank');
+          if (!panel || !btn) return;
+          const willOpen = forceState !== null ? !!forceState : panel.classList.contains('hidden');
+          panel.classList.toggle('hidden', !willOpen);
+          btn.textContent = willOpen ? '🏆 랭킹 닫기' : '🏆 랭킹 열기';
+          btn.className = willOpen
+            ? 'px-3 py-1.5 rounded-xl bg-amber-500/85 hover:bg-amber-500 border border-amber-300 text-slate-950 font-extrabold text-xs transition'
+            : 'px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 font-extrabold text-xs transition';
+        },
+
+        renderSpectateRanking(list) {
+          const countEl = document.getElementById('spectateRankCount');
+          const listEl = document.getElementById('spectateRankList');
+          if (countEl) countEl.textContent = `${list.length}명`;
+          if (!listEl) return;
+          if (!list.length) {
+            listEl.innerHTML = `<div class="py-6 text-center text-slate-400 text-[11px]">접속 중인 학생이 없습니다.</div>`;
+            return;
+          }
+          listEl.innerHTML = list.map((pl, idx) => {
+            const st = getStageById(pl.stageId || 'dust');
+            const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+            const aliveDot = pl.alive
+              ? '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block shrink-0"></span>'
+              : '<span class="w-1.5 h-1.5 rounded-full bg-slate-500 inline-block shrink-0"></span>';
+            return `
+              <button type="button" data-spec-id="${pl.id}" class="w-full text-left flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/70 transition">
+                <div class="min-w-0 flex items-center gap-1.5">
+                  <span class="font-orbitron text-[11px] font-bold text-amber-300 w-5 shrink-0">${medal}</span>
+                  ${aliveDot}
+                  <div class="min-w-0">
+                    <div class="font-bold text-white truncate">${pl.name || '학생'}</div>
+                    <div class="text-[10px] text-slate-400 truncate">${st.icon} ${st.name} · 퀴즈 ${pl.quizSolved || 0}</div>
+                  </div>
+                </div>
+                <span class="font-orbitron text-xs font-bold text-cyan-300 shrink-0">${Math.floor(pl.mass || 0)}</span>
+              </button>
+            `;
+          }).join('');
+
+          // 랭킹 항목 클릭 시 해당 학생 즉시 추적
+          listEl.querySelectorAll('[data-spec-id]').forEach((itemBtn) => {
+            itemBtn.onclick = () => {
+              const sel = document.getElementById('spectateTargetSelect');
+              if (sel) sel.value = itemBtn.dataset.specId;
+            };
+          });
+        },
+
         enterTeacherSpectate() {
+          gameState.player = null;
+          gameState.gravityWaves = [];
           gameState.teacherSpectating = true;
           gameState.mode = 'TEACHER_SPECTATE';
           gameState.playType = 'MULTI';
-          if (gameState.dusts.length === 0) {
-            for (let i = 0; i < 160; i++) spawnOneDust();
-          }
           document.getElementById('teacherModal').classList.add('hidden');
           document.getElementById('lobbyModal').classList.add('hidden');
           document.getElementById('teacherSpectatorHUD').classList.remove('hidden');
+          this.toggleSpectateRanking(false);
         },
 
         exitTeacherSpectate() {
           gameState.teacherSpectating = false;
           gameState.mode = 'LOBBY';
           document.getElementById('teacherSpectatorHUD').classList.add('hidden');
+          this.toggleSpectateRanking(false);
           document.getElementById('teacherModal').classList.remove('hidden');
         },
 
@@ -3556,6 +3960,9 @@
           this.roomIncludeBots = roomVal.meta.includeBots !== false;
           this.roomDuration = roomVal.meta.duration || 900;
           this.lastStatus = null;
+          const pIdx = typeof roomVal.meta.paletteIdx === 'number' ? roomVal.meta.paletteIdx : 0;
+          gameState.dustPalette = DUST_PALETTES[pIdx % DUST_PALETTES.length];
+          this.attachSharedDustListeners();
 
           if (roomVal.quizData) {
             const qTitles = Array.isArray(roomVal.meta.quizTitles) ? roomVal.meta.quizTitles : ['교사 지정 문제집'];
@@ -3680,6 +4087,9 @@
           if (this.roomRef) {
             if (this.playersListener) this.roomRef.child('players').off('value', this.playersListener);
             if (this.metaListener) this.roomRef.child('meta').off('value', this.metaListener);
+            if (this.dustAddedListener) this.roomRef.child('dusts').off('child_added', this.dustAddedListener);
+            if (this.dustChangedListener) this.roomRef.child('dusts').off('child_changed', this.dustChangedListener);
+            if (this.dustRemovedListener) this.roomRef.child('dusts').off('child_removed', this.dustRemovedListener);
             if (this.role === 'STUDENT') {
               this.roomRef.child('players/' + this.myId).remove().catch(() => {});
             }
@@ -3687,6 +4097,10 @@
           }
           this.playersListener = null;
           this.metaListener = null;
+          this.dustAddedListener = null;
+          this.dustChangedListener = null;
+          this.dustRemovedListener = null;
+          gameState.dustMap.clear();
           this.roomCode = null;
           this.role = null;
           this.lastStatus = null;
@@ -4143,6 +4557,8 @@
       document.getElementById('btnHudUpgrade').onclick = () => openUpgradeModal('evolution', false);
       document.getElementById('btnHudExit').onclick = () => {
         gameState.mode = 'LOBBY';
+        gameState.player = null;
+        gameState.gravityWaves = [];
         if (gameState.playType === 'MULTI') MultiplayerBridge.leave();
         document.getElementById('gameHUD').classList.add('hidden');
         document.getElementById('lobbyModal').classList.remove('hidden');
@@ -4175,6 +4591,8 @@
       document.getElementById('btnRunOverRetry').onclick = () => startNewMatch(gameState.playType);
       document.getElementById('btnRunOverLobby').onclick = () => {
         gameState.mode = 'LOBBY';
+        gameState.player = null;
+        gameState.gravityWaves = [];
         if (gameState.playType === 'MULTI') MultiplayerBridge.leave();
         document.getElementById('runOverModal').classList.add('hidden');
         document.getElementById('lobbyModal').classList.remove('hidden');
@@ -4247,6 +4665,8 @@
       }
       document.getElementById('btnTeacherSpectate').onclick = () => MultiplayerBridge.enterTeacherSpectate();
       document.getElementById('btnExitSpectate').onclick = () => MultiplayerBridge.exitTeacherSpectate();
+      document.getElementById('btnToggleSpectateRank').onclick = () => MultiplayerBridge.toggleSpectateRanking();
+      document.getElementById('btnCloseSpectateRank').onclick = () => MultiplayerBridge.toggleSpectateRanking(false);
       document.getElementById('btnTeacherCreateRoom').onclick = () => MultiplayerBridge.createTeacherRoom();
       document.getElementById('btnTeacherStartMatch').onclick = () => MultiplayerBridge.startTeacherMatch();
       document.getElementById('btnTeacherEndMatch').onclick = () => MultiplayerBridge.endTeacherMatch();
