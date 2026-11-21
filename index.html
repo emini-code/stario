@@ -128,23 +128,23 @@
   <div id="toastHost" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[80] flex flex-col items-center gap-2 pointer-events-none px-4"></div>
 
   <!-- ==================== 전역 우상단 컨트롤 (소리 / 조작키 설정 / 전체화면 · 해제) ==================== -->
-  <div id="globalTopRightControls" class="fixed top-3 right-3 z-[75] flex items-center gap-1.5">
-    <button id="btnToggleSound" type="button" title="소리 켜기/끄기" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-bold text-emerald-300 transition">
+  <div id="globalTopRightControls" class="fixed top-2 right-2 sm:top-3 sm:right-3 z-[75] flex items-center gap-1 sm:gap-1.5">
+    <button id="btnToggleSound" type="button" title="소리 켜기/끄기" class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[10px] sm:text-[11px] font-bold text-emerald-300 transition">
       🔊 소리 ON
     </button>
-    <button id="btnGlobalControlConfig" type="button" title="조작키 설정" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-extrabold text-cyan-300 transition">
+    <button id="btnGlobalControlConfig" type="button" title="조작키 설정" class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[10px] sm:text-[11px] font-extrabold text-cyan-300 transition">
       🎛️ 조작설정
     </button>
-    <button id="btnEnterFullscreen" type="button" title="전체화면 켜기" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-bold text-slate-200 transition">
+    <button id="btnEnterFullscreen" type="button" title="전체화면 켜기" class="px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[10px] sm:text-[11px] font-bold text-slate-200 transition">
       ⛶ 전체화면
     </button>
-    <button id="btnExitFullscreen" type="button" title="전체화면 해제" class="hidden px-2.5 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-500 border border-rose-300/70 text-[11px] font-extrabold text-white shadow-lg transition">
-      ✕ 전체화면 해제
+    <button id="btnExitFullscreen" type="button" title="전체화면 해제" class="hidden px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-500 border border-rose-300/70 text-[10px] sm:text-[11px] font-extrabold text-white shadow-lg transition">
+      ✕ 해제
     </button>
   </div>
 
   <!-- ==================== 2. 메인 로비 모달 ==================== -->
-  <div id="lobbyModal" class="fixed inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/55 backdrop-blur-[4px]">
+  <div id="lobbyModal" class="fixed inset-0 z-30 flex items-center justify-center p-3 pt-12 sm:p-4 bg-slate-950/55 backdrop-blur-[4px]">
     <div class="glass-panel rounded-3xl w-full max-w-lg p-6 sm:p-7 flex flex-col gap-4 max-h-[94vh] overflow-y-auto custom-scroll">
       <div class="text-center">
         <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-400/35 text-sky-300 text-[11px] font-bold mb-2">
@@ -220,7 +220,7 @@
   </div>
 
   <!-- ==================== 3-A. 교사 전용 대시보드 모달 ==================== -->
-  <div id="teacherModal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md">
+  <div id="teacherModal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-3 pt-12 sm:p-5 bg-slate-950/85 backdrop-blur-md">
     <div class="glass-panel rounded-3xl w-full max-w-5xl p-5 sm:p-6 flex flex-col gap-4 max-h-[94vh] overflow-y-auto custom-scroll border border-fuchsia-400/35">
       <div class="flex items-center justify-between border-b border-slate-700/70 pb-3">
         <div>
@@ -279,7 +279,7 @@
             </div>
             <label class="flex items-center justify-between bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2.5 cursor-pointer">
               <span class="text-xs font-bold text-slate-200">빈 자리 AI 봇 채우기</span>
-              <input id="chkTeacherBots" type="checkbox" checked class="w-4 h-4 accent-fuchsia-500" />
+              <input id="chkTeacherBots" type="checkbox" class="w-4 h-4 accent-fuchsia-500" />
             </label>
             <div class="text-[11px] text-slate-400 leading-relaxed bg-slate-950/50 rounded-xl p-3 border border-slate-800">
               💡 <strong>GitHub 자동 연동:</strong> GitHub Pages 저장소에 <code class="text-sky-300">index.html</code>과 같은 폴더에 퀴즈 <code class="text-sky-300">.js</code> 파일(예: <code class="text-sky-300">태양계.js</code>, <code class="text-sky-300">우주.js</code>)을 올려두면 별도 목록 파일 없이 자동으로 표시됩니다.
@@ -392,7 +392,7 @@
   </div>
 
   <!-- ==================== 3-B. 학생 전용 입장 / 대기실 모달 ==================== -->
-  <div id="multiModal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+  <div id="multiModal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-3 pt-12 sm:p-4 bg-slate-950/80 backdrop-blur-md">
     <div class="glass-panel rounded-3xl w-full max-w-md p-5 sm:p-6 flex flex-col gap-4 max-h-[92vh] overflow-y-auto custom-scroll border border-emerald-400/35">
       <div class="flex items-center justify-between border-b border-slate-700/70 pb-3">
         <div>
@@ -451,7 +451,7 @@
   </div>
 
   <!-- ==================== 3-C. 교사 실시간 관전 HUD ==================== -->
-  <div id="teacherSpectatorHUD" class="hidden fixed inset-x-0 top-3 z-40 flex justify-center px-4 pointer-events-none">
+  <div id="teacherSpectatorHUD" class="hidden fixed inset-x-0 top-11 sm:top-3 z-40 flex justify-center px-2 sm:px-4 pointer-events-none">
     <div class="glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-3 flex-wrap pointer-events-auto border border-cyan-400/50">
       <span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-cyan-500/20 text-cyan-200">🔭 교사 관전 모드</span>
       <select id="spectateTargetSelect" class="bg-slate-900 border border-slate-600 rounded-xl px-3 py-1.5 text-xs font-bold text-white focus:outline-none">
@@ -469,7 +469,7 @@
   </div>
 
   <!-- 교사 관전 모드용 실시간 랭킹창 -->
-  <div id="teacherSpectateRankingPanel" class="hidden fixed top-16 right-3 sm:right-4 z-40 w-64 sm:w-72 glass-panel rounded-2xl p-3.5 border border-amber-400/40 flex flex-col gap-2 max-h-[70vh]">
+  <div id="teacherSpectateRankingPanel" class="hidden fixed top-28 sm:top-16 right-2 sm:right-4 z-40 w-[86vw] max-w-[18rem] glass-panel rounded-2xl p-3.5 border border-amber-400/40 flex flex-col gap-2 max-h-[62vh] sm:max-h-[70vh]">
     <div class="flex items-center justify-between border-b border-slate-700/70 pb-2">
       <div class="flex items-center gap-2">
         <span class="text-xs sm:text-sm font-black text-amber-300">🏆 실시간 우주 랭킹</span>
@@ -485,7 +485,7 @@
   <!-- ==================== 4. 인게임 HUD ==================== -->
   <div id="gameHUD" class="hidden fixed inset-0 z-20 pointer-events-none">
     <!-- 좌상단 상태 카드 -->
-    <div class="absolute top-3 left-3 sm:top-4 sm:left-4 flex flex-col gap-2 pointer-events-auto max-w-[235px] sm:max-w-[270px]">
+    <div class="absolute top-2 left-2 sm:top-4 sm:left-4 flex flex-col gap-1.5 sm:gap-2 pointer-events-auto max-w-[170px] sm:max-w-[270px]">
       <div class="glass-panel rounded-2xl px-3.5 py-2.5 flex flex-col gap-1.5">
         <div class="flex items-center justify-between gap-2">
           <span id="hudStageBadge" class="text-xs sm:text-sm font-black text-amber-300 truncate">🌫️ 성간 물질</span>
@@ -527,10 +527,10 @@
     </div>
 
     <!-- 우상단 레이더 미니맵 (전역 컨트롤 바 아래 배치) -->
-    <div class="absolute top-14 right-3 sm:top-16 sm:right-4 flex flex-col items-end gap-2 pointer-events-auto">
+    <div class="absolute top-11 right-2 sm:top-16 sm:right-4 flex flex-col items-end gap-2 pointer-events-auto">
       <!-- 우주 레이더 맵 (스킬 해금 전 숨김) -->
-      <div id="minimapContainer" class="hidden relative glass-panel rounded-2xl p-2">
-        <canvas id="minimapCanvas" width="124" height="124" class="rounded-full bg-slate-950/90 block"></canvas>
+      <div id="minimapContainer" class="hidden relative glass-panel rounded-2xl p-1.5 sm:p-2">
+        <canvas id="minimapCanvas" width="124" height="124" class="w-24 h-24 sm:w-[124px] sm:h-[124px] rounded-full bg-slate-950/90 block"></canvas>
         <div id="minimapBhBadge" class="hidden absolute bottom-1.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-fuchsia-600/90 text-[9px] font-extrabold text-white whitespace-nowrap">
           🕳️ 블랙홀 출현
         </div>
@@ -547,7 +547,7 @@
     </div>
 
     <!-- 조작 환경설정 편집 안내 패널 -->
-    <div id="controlConfigPanel" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-40 glass-panel rounded-2xl px-4 py-3 flex flex-col sm:flex-row items-center gap-3 border border-cyan-400/60 pointer-events-auto max-w-[94vw]">
+    <div id="controlConfigPanel" class="hidden fixed top-12 sm:top-4 left-1/2 -translate-x-1/2 z-40 glass-panel rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 flex flex-col sm:flex-row items-center gap-2 sm:gap-3 border border-cyan-400/60 pointer-events-auto w-[92vw] sm:w-auto max-w-[94vw]">
       <div class="text-center sm:text-left">
         <div class="text-xs sm:text-sm font-black text-cyan-300">🎛️ 조작 환경설정 (스킬 버튼 배치)</div>
         <div class="text-[11px] text-slate-300">각 스킬 버튼을 원하는 위치로 드래그해서 옮기세요!</div>
@@ -596,7 +596,7 @@
   </div>
 
   <!-- ==================== 5. 생존 종료 모달 (뒷배경 실시간 관전 흐림) ==================== -->
-  <div id="runOverModal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/45 backdrop-blur-[5px]">
+  <div id="runOverModal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-3 pt-12 sm:p-4 bg-slate-950/45 backdrop-blur-[5px]">
     <div class="glass-panel rounded-3xl w-full max-w-md p-6 text-center flex flex-col gap-4 border border-slate-600/50 max-h-[92vh] overflow-y-auto custom-scroll">
       <div class="text-4xl">🪐</div>
       <div>
@@ -656,7 +656,7 @@
   </div>
 
   <!-- ==================== 7. 업그레이드 모달 (진화 / 스킬 / 능력 강화) ==================== -->
-  <div id="skillModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md">
+  <div id="skillModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 pt-12 sm:p-5 bg-slate-950/85 backdrop-blur-md">
     <div class="glass-panel rounded-3xl w-full max-w-5xl p-5 sm:p-6 flex flex-col gap-4 max-h-[94vh] overflow-y-auto custom-scroll">
       <div class="flex items-center justify-between border-b border-slate-700/70 pb-3 flex-wrap gap-2">
         <div>
@@ -686,7 +686,7 @@
   </div>
 
   <!-- ==================== 8. 과학 퀴즈 모달 ==================== -->
-  <div id="quizModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+  <div id="quizModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-3 pt-12 sm:p-4 bg-slate-950/85 backdrop-blur-md">
     <div class="glass-panel rounded-3xl w-full max-w-xl p-5 sm:p-6 flex flex-col gap-4 max-h-[92vh] overflow-y-auto custom-scroll border border-sky-400/40">
       <div class="flex items-start justify-between gap-3 border-b border-slate-700/70 pb-3">
         <div>
@@ -941,8 +941,8 @@
           if (!btn) return;
           btn.textContent = this.muted ? '🔇 소리 OFF' : '🔊 소리 ON';
           btn.className = this.muted
-            ? 'px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-bold text-slate-400 transition'
-            : 'px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-bold text-emerald-300 transition';
+            ? 'px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[10px] sm:text-[11px] font-bold text-slate-400 transition'
+            : 'px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[10px] sm:text-[11px] font-bold text-emerald-300 transition';
         },
         ensure() {
           if (!this.ctx) {
@@ -1624,7 +1624,8 @@
           ownerId: p.id,
           duration: 2.2,
           maxDuration: 2.2,
-          radius
+          radius,
+          remotePullAccum: 0.45
         });
         SoundFX.skill();
         addFloatingText(p.x, p.y - 25, '🌀 중력장 발동!', '#60a5fa');
@@ -1877,6 +1878,22 @@
               const pull = (175 + (gw.radius - d) * 0.65) * dt;
               b.x += ((p.x - b.x) / d) * pull;
               b.y += ((p.y - b.y) / d) * pull;
+            }
+          }
+          if (gameState.playType === 'MULTI') {
+            gw.remotePullAccum = (gw.remotePullAccum || 0) + dt;
+            if (gw.remotePullAccum >= 0.45) {
+              gw.remotePullAccum = 0;
+              const nowMs = Date.now();
+              gameState.remotePlayers.forEach((rp) => {
+                if (!rp.alive || nowMs - (rp.updatedAt || 0) > 15000 || (rp.invuln || 0) > 0) return;
+                const d = Math.hypot(p.x - rp.x, p.y - rp.y);
+                if (d > pR + 12 && d < gw.radius) {
+                  const pullAng = Math.atan2(p.y - rp.y, p.x - rp.x);
+                  const strength = Math.round(90 + (gw.radius - d) * 0.35);
+                  MultiplayerBridge.sendHitToRemote(rp.id, 'gravity_pull', 0, p.name, pullAng, null, { strength });
+                }
+              });
             }
           }
         }
@@ -2579,12 +2596,25 @@
         inputState.moveActive = false;
         inputState.mouseMoveActive = false;
         inputState.touchMoveId = null;
+        if (typeof ControlLayoutManager !== 'undefined' && ControlLayoutManager.editing) {
+          ControlLayoutManager.exitEdit(false);
+        }
+        document.getElementById('skillModal').classList.add('hidden');
+        document.getElementById('quizModal').classList.add('hidden');
+        document.getElementById('rebirthModal').classList.add('hidden');
         if (gameState.playType === 'MULTI') MultiplayerBridge.pushPlayerState(false);
         persistSaveData();
         updateLobbyStats();
 
         const p = gameState.player;
         document.getElementById('gameHUD').classList.add('hidden');
+
+        // 경기 종료(제한시간 초과 / 교사 종료) 시 재출격 및 업그레이드 버튼 숨김 처리
+        const isMatchEnded = !!showRanking || (gameState.playType === 'MULTI' && MultiplayerBridge.lastStatus === 'ENDED');
+        const btnRetry = document.getElementById('btnRunOverRetry');
+        const btnUpg = document.getElementById('btnRunOverUpgrade');
+        if (btnRetry) btnRetry.classList.toggle('hidden', isMatchEnded);
+        if (btnUpg) btnUpg.classList.toggle('hidden', isMatchEnded);
         document.getElementById('runOverReason').textContent = reasonText;
         document.getElementById('runOverStage').textContent = p ? getDisplayStageName(p.stageId) : '성간 물질';
         document.getElementById('runOverMass').textContent = p ? Math.floor(p.maxMass) : 30;
@@ -3742,16 +3772,18 @@
           this.roomRef.child('dusts/' + du.id).set(next).catch(() => {});
         },
 
-        sendHitToRemote(targetId, hitType, dmg, attackerName, angle = null, attackerStageId = null) {
+        sendHitToRemote(targetId, hitType, dmg, attackerName, angle = null, attackerStageId = null, extra = null) {
           if (!this.roomRef || !targetId) return;
-          this.roomRef.child('hits/' + targetId).push({
+          const payload = {
             type: hitType,
             dmg: Math.round(dmg),
             from: attackerName || '상대',
             angle: typeof angle === 'number' ? Number(angle.toFixed(3)) : null,
             stageId: attackerStageId || null,
             ts: Date.now()
-          }).catch(() => {});
+          };
+          if (extra && typeof extra === 'object') Object.assign(payload, extra);
+          this.roomRef.child('hits/' + targetId).push(payload).catch(() => {});
         },
 
         async createTeacherRoom() {
@@ -4075,9 +4107,15 @@
             return;
           }
           const nameEl = document.getElementById('studentNameInput');
-          const myName = (nameEl && nameEl.value.trim()) || (document.getElementById('playerNameInput').value || '우주 탐험가').trim();
+          const lobbyNameEl = document.getElementById('playerNameInput');
+          const myName = ((nameEl && nameEl.value.trim()) || (lobbyNameEl && lobbyNameEl.value.trim()) || '').slice(0, 12);
+          if (!myName) {
+            showToast('✏️ 내 별 이름(닉네임)을 먼저 입력해 주세요!', 'warn');
+            if (nameEl) nameEl.focus();
+            return;
+          }
           if (nameEl) nameEl.value = myName;
-          document.getElementById('playerNameInput').value = myName;
+          if (lobbyNameEl) lobbyNameEl.value = myName;
 
           const ref = fbDb.ref('rooms/' + code);
           const snap = await ref.once('value');
@@ -4086,6 +4124,18 @@
             showToast(`방 코드 [${code}]를 찾을 수 없습니다. 코드를 다시 확인해 주세요.`, 'warn');
             return;
           }
+
+          // 새 수업 방 입장 시 이전 반/학생 기록 자동 초기화 (같은 방 재접속은 유지)
+          const LAST_ROOM_KEY = 'star_io_last_room_code_v1';
+          try {
+            const prevRoom = localStorage.getItem(LAST_ROOM_KEY);
+            if (prevRoom !== code) {
+              saveData = createDefaultSave();
+              persistSaveData();
+              updateLobbyStats();
+              localStorage.setItem(LAST_ROOM_KEY, code);
+            }
+          } catch (e) {}
 
           this.leave();
           this.roomCode = code;
@@ -4119,6 +4169,15 @@
             if (hit.type === 'eaten') {
               const killerStage = hit.stageId ? getDisplayStageName(hit.stageId) : '거대한 별';
               endPlayerRun(`👤 [${hit.from}] (${killerStage})의 강한 중력에 흡수되었습니다.`);
+              return;
+            }
+            if (hit.type === 'gravity_pull') {
+              if (typeof hit.angle === 'number') {
+                const str = Math.max(60, Math.min(220, Number(hit.strength) || 110));
+                p.vx += Math.cos(hit.angle) * str;
+                p.vy += Math.sin(hit.angle) * str;
+                addFloatingText(p.x, p.y - 20, `🌀 [${hit.from}] 중력 인력!`, '#60a5fa');
+              }
               return;
             }
             const dmg = Math.max(20, Number(hit.dmg) || 40);
@@ -4247,7 +4306,7 @@
               gameState.matchDurationSec = Math.max(10, remain);
               if (gameState.mode !== 'PLAYING') startNewMatch('MULTI');
             } else if (meta.status === 'ENDED' && prevStatus === 'PLAYING') {
-              if (gameState.mode === 'PLAYING') {
+              if (gameState.mode === 'PLAYING' || gameState.mode === 'PAUSED' || gameState.mode === 'RUN_OVER') {
                 endPlayerRun('🔔 선생님이 수업을 종료했습니다! 오늘 우주 탐험 수고하셨습니다.', true);
               }
             }
@@ -4484,10 +4543,12 @@
           } catch (e) {}
         },
         clampPos(btn, right, bottom) {
+          const vw = window.visualViewport ? Math.round(window.visualViewport.width) : window.innerWidth;
+          const vh = window.visualViewport ? Math.round(window.visualViewport.height) : window.innerHeight;
           const bw = (btn.offsetWidth || 68) * this.scale;
           const bh = (btn.offsetHeight || 68) * this.scale;
-          const maxRight = Math.max(8, window.innerWidth - bw - 8);
-          const maxBottom = Math.max(8, window.innerHeight - bh - 8);
+          const maxRight = Math.max(8, vw - bw - 8);
+          const maxBottom = Math.max(8, vh - bh - 8);
           return {
             right: Math.max(8, Math.min(maxRight, right)),
             bottom: Math.max(8, Math.min(maxBottom, bottom))
@@ -4758,7 +4819,15 @@
       });
 
       // 로비 / HUD / 모달 버튼 연결
-      document.getElementById('btnStartSingle').onclick = () => startNewMatch('SINGLE');
+      document.getElementById('btnStartSingle').onclick = () => {
+        const nameEl = document.getElementById('playerNameInput');
+        if (!nameEl || !nameEl.value.trim()) {
+          showToast('✏️ 내 별 이름(닉네임)을 먼저 입력해 주세요!', 'warn');
+          if (nameEl) nameEl.focus();
+          return;
+        }
+        startNewMatch('SINGLE');
+      };
       document.getElementById('btnLobbyUpgrade').onclick = () => openUpgradeModal('evolution', false);
       document.getElementById('btnHudUpgrade').onclick = () => openUpgradeModal('evolution', false);
       document.getElementById('btnHudExit').onclick = () => {
@@ -4794,7 +4863,13 @@
 
       // 생존 종료 모달 버튼
       document.getElementById('btnRunOverUpgrade').onclick = () => openUpgradeModal('evolution', true);
-      document.getElementById('btnRunOverRetry').onclick = () => startNewMatch(gameState.playType);
+      document.getElementById('btnRunOverRetry').onclick = () => {
+        if (gameState.playType === 'MULTI' && (MultiplayerBridge.lastStatus === 'ENDED' || gameState.timeRemaining <= 0)) {
+          showToast('⏹️ 이미 종료된 경기입니다.', 'warn');
+          return;
+        }
+        startNewMatch(gameState.playType);
+      };
       document.getElementById('btnRunOverLobby').onclick = () => {
         gameState.mode = 'LOBBY';
         gameState.player = null;
