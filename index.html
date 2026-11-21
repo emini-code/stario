@@ -87,6 +87,21 @@
     .svg-node-clickable:hover {
       filter: brightness(1.18);
     }
+    .skill-custom-btn {
+      position: fixed;
+      z-index: 25;
+      pointer-events: auto;
+      touch-action: none;
+    }
+    .skill-edit-mode {
+      outline: 2px dashed #38bdf8;
+      outline-offset: 4px;
+      cursor: grab !important;
+      animation: pulseGlow 1.5s infinite;
+    }
+    .skill-edit-mode:active {
+      cursor: grabbing !important;
+    }
   </style>
 </head>
 <body class="relative w-screen h-screen overflow-hidden bg-slate-950">
@@ -99,6 +114,19 @@
 
   <!-- ==================== 토스트 알림 ==================== -->
   <div id="toastHost" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[80] flex flex-col items-center gap-2 pointer-events-none px-4"></div>
+
+  <!-- ==================== 전역 우상단 컨트롤 (소리 / 조작키 설정 / 전체화면) ==================== -->
+  <div id="globalTopRightControls" class="fixed top-3 right-3 z-[75] flex items-center gap-1.5">
+    <button id="btnToggleSound" type="button" title="소리 켜기/끄기" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-bold text-emerald-300 transition">
+      🔊 소리 ON
+    </button>
+    <button id="btnGlobalControlConfig" type="button" title="조작키 설정" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-extrabold text-cyan-300 transition">
+      🎛️ 조작설정
+    </button>
+    <button type="button" class="btn-toggle-fullscreen px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-bold text-slate-200 transition">
+      ⛶ 전체화면
+    </button>
+  </div>
 
   <!-- ==================== 2. 메인 로비 모달 ==================== -->
   <div id="lobbyModal" class="fixed inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/55 backdrop-blur-[4px]">
@@ -222,10 +250,16 @@
             <h3 class="text-sm sm:text-base font-extrabold text-white">⚙️ 2. 경기 방 설정</h3>
             <div>
               <label class="block text-xs font-bold text-slate-400 mb-1.5">경기 제한 시간</label>
-              <div class="grid grid-cols-3 gap-2">
+              <div class="grid grid-cols-3 gap-2 mb-2">
                 <button type="button" data-duration="300" class="btn-teacher-dur py-2 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 border border-slate-700">5분</button>
                 <button type="button" data-duration="600" class="btn-teacher-dur py-2 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 border border-slate-700">10분</button>
                 <button type="button" data-duration="900" class="btn-teacher-dur py-2 rounded-xl text-xs font-extrabold bg-fuchsia-600 text-white border border-fuchsia-400">15분</button>
+              </div>
+              <div class="flex items-center gap-2 bg-slate-950/70 border border-slate-700 rounded-xl px-3 py-2">
+                <span class="text-xs font-bold text-slate-400 shrink-0">직접 입력:</span>
+                <input id="inputTeacherCustomMin" type="number" min="1" max="120" value="15"
+                  class="w-full bg-transparent text-right font-orbitron text-sm font-bold text-white focus:outline-none" />
+                <span class="text-xs font-bold text-slate-300 shrink-0">분</span>
               </div>
             </div>
             <label class="flex items-center justify-between bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2.5 cursor-pointer">
@@ -314,12 +348,14 @@
             </div>
           </div>
 
-          <div class="bg-slate-900/80 border border-slate-700/70 rounded-2xl p-3.5 flex items-center justify-between gap-4">
-            <div class="flex-1">
-              <div class="text-xs font-extrabold text-cyan-300">📡 실시간 교실 우주 레이더</div>
-              <p class="text-[11px] text-slate-400 mt-1">접속한 학생 별들의 실시간 위치와 이동을 한눈에 확인할 수 있습니다.</p>
+          <div class="bg-slate-900/80 border border-cyan-500/40 rounded-2xl p-4 flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <div class="text-sm font-extrabold text-cyan-300">🔭 실시간 학생 플레이 관전</div>
+              <p class="text-xs text-slate-300 mt-1">전체 우주 전장을 보거나 특정 학생의 별을 추적하며 실시간으로 관전합니다.</p>
             </div>
-            <canvas id="teacherRadarCanvas" width="140" height="140" class="rounded-full bg-slate-950 border border-cyan-500/40 shrink-0"></canvas>
+            <button id="btnTeacherSpectate" class="px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110 text-white font-extrabold text-xs sm:text-sm shadow-lg shrink-0">
+              👁️ 전체 화면 관전하기
+            </button>
           </div>
         </div>
       </div>
@@ -399,6 +435,21 @@
     </div>
   </div>
 
+  <!-- ==================== 3-C. 교사 실시간 관전 HUD ==================== -->
+  <div id="teacherSpectatorHUD" class="hidden fixed inset-x-0 top-3 z-40 flex justify-center px-4 pointer-events-none">
+    <div class="glass-panel rounded-2xl px-4 py-2.5 flex items-center gap-3 flex-wrap pointer-events-auto border border-cyan-400/50">
+      <span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-cyan-500/20 text-cyan-200">🔭 교사 관전 모드</span>
+      <select id="spectateTargetSelect" class="bg-slate-900 border border-slate-600 rounded-xl px-3 py-1.5 text-xs font-bold text-white focus:outline-none">
+        <option value="TOP">🏆 1위 학생 자동 추적</option>
+        <option value="OVERVIEW">🌌 우주 전체 조망</option>
+      </select>
+      <span id="spectateTimerText" class="font-orbitron text-xs font-bold text-amber-300">15:00</span>
+      <button id="btnExitSpectate" class="px-3.5 py-1.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-extrabold text-xs">
+        📋 관제실로 복귀
+      </button>
+    </div>
+  </div>
+
   <!-- ==================== 4. 인게임 HUD ==================== -->
   <div id="gameHUD" class="hidden fixed inset-0 z-20 pointer-events-none">
     <!-- 좌상단 상태 카드 -->
@@ -433,26 +484,18 @@
       </div>
 
       <!-- 빠른 메뉴 -->
-      <div class="flex gap-1.5">
-        <button id="btnHudUpgrade" class="px-3 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 text-[11px] font-extrabold text-amber-300 transition">
+      <div class="flex flex-wrap gap-1.5">
+        <button id="btnHudUpgrade" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 text-[11px] font-extrabold text-amber-300 transition">
           ⚡ 업그레이드
         </button>
-        <button id="btnHudExit" class="px-3 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 text-[11px] font-bold text-slate-300 transition">
+        <button id="btnHudExit" class="px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 text-[11px] font-bold text-slate-300 transition">
           🏠 로비
         </button>
       </div>
     </div>
 
-    <!-- 우상단 리더보드 & 레이더 미니맵 -->
-    <div class="absolute top-3 right-3 sm:top-4 sm:right-4 flex flex-col items-end gap-2 pointer-events-auto">
-      <div class="glass-panel rounded-2xl px-3 py-2.5 w-44 sm:w-52">
-        <div class="flex items-center justify-between text-[11px] font-extrabold text-slate-300 border-b border-slate-700/60 pb-1 mb-1.5">
-          <span>🏆 우주 랭킹</span>
-          <span id="hudAliveCount" class="font-orbitron text-[10px] text-sky-300">20명</span>
-        </div>
-        <div id="leaderboardList" class="flex flex-col gap-1 text-[11px]"></div>
-      </div>
-
+    <!-- 우상단 레이더 미니맵 (전역 컨트롤 바 아래 배치) -->
+    <div class="absolute top-14 right-3 sm:top-16 sm:right-4 flex flex-col items-end gap-2 pointer-events-auto">
       <!-- 우주 레이더 맵 (스킬 해금 전 숨김) -->
       <div id="minimapContainer" class="hidden relative glass-panel rounded-2xl p-2">
         <canvas id="minimapCanvas" width="124" height="124" class="rounded-full bg-slate-950/90 block"></canvas>
@@ -464,54 +507,65 @@
 
     <!-- 좌하단 조작 안내 (PC용) -->
     <div class="hidden md:flex absolute bottom-4 left-4 glass-panel rounded-2xl px-3.5 py-2 text-[11px] text-slate-300 gap-3">
-      <span>🖱️ 마우스 이동</span>
+      <span>🕹️ 왼쪽 화면 드래그 이동</span>
       <span><kbd class="px-1.5 py-0.5 rounded bg-slate-800 font-orbitron text-[10px]">Space</kbd> 부스터</span>
       <span><kbd class="px-1.5 py-0.5 rounded bg-slate-800 font-orbitron text-[10px]">E</kbd> 중력장</span>
       <span><kbd class="px-1.5 py-0.5 rounded bg-slate-800 font-orbitron text-[10px]">Q</kbd> 플레어</span>
       <span><kbd class="px-1.5 py-0.5 rounded bg-slate-800 font-orbitron text-[10px]">R</kbd> 반물질</span>
     </div>
 
-    <!-- 우하단 스킬 버튼 영역 (플레어 & 반물질은 화면 안쪽으로 배치) -->
-    <div class="absolute bottom-0 right-0 pointer-events-none flex flex-col items-end">
-      <!-- 플레어 & 반물질 드래그 조준 그룹 (화면 안쪽 여백 확보) -->
-      <div class="flex items-center gap-3.5 mb-12 mr-8 sm:mb-16 sm:mr-14 pointer-events-auto">
-        <!-- 반물질 버튼 (드래그 조준) -->
-        <button id="btnSkillAntimatter" class="skill-btn-ring w-16 h-16 sm:w-[70px] sm:h-[70px] bg-gradient-to-br from-fuchsia-600/90 to-purple-800/90 border-2 border-fuchsia-300/70 shadow-lg text-white">
-          <span class="text-xl leading-none">⚛️</span>
-          <span class="text-[10px] font-extrabold mt-0.5">반물질</span>
-          <span id="antiAmmoText" class="font-orbitron text-[10px] font-bold text-fuchsia-200">0/1</span>
-        </button>
-
-        <!-- 플레어 버튼 (드래그 조준) -->
-        <button id="btnSkillFlare" class="skill-btn-ring w-16 h-16 sm:w-[70px] sm:h-[70px] bg-gradient-to-br from-orange-500/90 to-rose-600/90 border-2 border-amber-300/75 shadow-lg text-white">
-          <span class="text-xl leading-none">🔥</span>
-          <span class="text-[10px] font-extrabold mt-0.5">플레어</span>
-          <span id="flareCdText" class="font-orbitron text-[10px] font-bold text-amber-100">READY</span>
-          <span id="flareLockIcon" class="hidden absolute inset-0 rounded-full bg-slate-950/75 flex items-center justify-center text-lg">🔒</span>
-        </button>
+    <!-- 조작 환경설정 편집 안내 패널 -->
+    <div id="controlConfigPanel" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-40 glass-panel rounded-2xl px-4 py-3 flex flex-col sm:flex-row items-center gap-3 border border-cyan-400/60 pointer-events-auto max-w-[94vw]">
+      <div class="text-center sm:text-left">
+        <div class="text-xs sm:text-sm font-black text-cyan-300">🎛️ 조작 환경설정 (스킬 버튼 배치)</div>
+        <div class="text-[11px] text-slate-300">각 스킬 버튼을 원하는 위치로 드래그해서 옮기세요!</div>
       </div>
-
-      <!-- 하단 기본 액션 (중력장 & 부스터) -->
-      <div class="flex items-center gap-3 mb-4 mr-4 sm:mb-5 sm:mr-5 pointer-events-auto">
-        <button id="btnSkillGravity" class="skill-btn-ring w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-indigo-500/90 to-blue-700/90 border-2 border-sky-300/70 shadow-lg text-white">
-          <span class="text-lg leading-none">🌀</span>
-          <span class="text-[10px] font-extrabold">중력장</span>
-          <span id="gravityCdText" class="font-orbitron text-[9px] font-bold text-sky-100">READY</span>
+      <div class="flex items-center gap-2 shrink-0">
+        <div class="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700 rounded-xl px-2.5 py-1.5">
+          <span class="text-[11px] font-bold text-slate-300">크기</span>
+          <input id="inputSkillScale" type="range" min="0.75" max="1.35" step="0.05" value="1" class="w-16 accent-cyan-400" />
+        </div>
+        <button id="btnResetSkillLayout" type="button" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-amber-200">
+          ↺ 초기화
         </button>
-
-        <button id="btnSkillBoost" class="skill-btn-ring w-16 h-16 sm:w-[72px] sm:h-[72px] bg-gradient-to-br from-cyan-500/90 to-teal-600/90 border-2 border-cyan-200/80 shadow-lg text-white">
-          <span class="text-xl leading-none">🚀</span>
-          <span class="text-[10px] font-extrabold">부스터</span>
-          <span class="font-orbitron text-[9px] text-cyan-100">HOLD</span>
-          <span id="boostLockIcon" class="hidden absolute inset-0 rounded-full bg-slate-950/75 flex items-center justify-center text-lg">🔒</span>
+        <button id="btnSaveSkillLayout" type="button" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-extrabold shadow">
+          ✓ 저장 완료
         </button>
       </div>
     </div>
+
+    <!-- 개별 위치 조절 가능한 스킬 버튼들 -->
+    <button id="btnSkillAntimatter" data-skill-id="antimatter" class="skill-btn-ring skill-custom-btn w-16 h-16 sm:w-[70px] sm:h-[70px] bg-gradient-to-br from-fuchsia-600/90 to-purple-800/90 border-2 border-fuchsia-300/70 shadow-lg text-white">
+      <span class="text-xl leading-none pointer-events-none">⚛️</span>
+      <span class="text-[10px] font-extrabold mt-0.5 pointer-events-none">반물질</span>
+      <span id="antiAmmoText" class="font-orbitron text-[10px] font-bold text-fuchsia-200 pointer-events-none">0/1</span>
+    </button>
+
+    <button id="btnSkillFlare" data-skill-id="flare" class="skill-btn-ring skill-custom-btn w-16 h-16 sm:w-[70px] sm:h-[70px] bg-gradient-to-br from-orange-500/90 to-rose-600/90 border-2 border-amber-300/75 shadow-lg text-white">
+      <span class="text-xl leading-none pointer-events-none">🔥</span>
+      <span class="text-[10px] font-extrabold mt-0.5 pointer-events-none">플레어</span>
+      <span id="flareCdText" class="font-orbitron text-[10px] font-bold text-amber-100 pointer-events-none">READY</span>
+      <span id="flareLockIcon" class="hidden absolute inset-0 rounded-full bg-slate-950/75 flex items-center justify-center text-lg pointer-events-none">🔒</span>
+    </button>
+
+    <button id="btnSkillGravity" data-skill-id="gravity" class="skill-btn-ring skill-custom-btn w-16 h-16 sm:w-[70px] sm:h-[70px] bg-gradient-to-br from-indigo-500/90 to-blue-700/90 border-2 border-sky-300/70 shadow-lg text-white">
+      <span class="text-xl leading-none pointer-events-none">🌀</span>
+      <span class="text-[10px] font-extrabold mt-0.5 pointer-events-none">중력장</span>
+      <span id="gravityCdText" class="font-orbitron text-[10px] font-bold text-sky-100 pointer-events-none">READY</span>
+      <span id="gravityLockIcon" class="hidden absolute inset-0 rounded-full bg-slate-950/75 flex items-center justify-center text-lg pointer-events-none">🔒</span>
+    </button>
+
+    <button id="btnSkillBoost" data-skill-id="boost" class="skill-btn-ring skill-custom-btn w-16 h-16 sm:w-[72px] sm:h-[72px] bg-gradient-to-br from-cyan-500/90 to-teal-600/90 border-2 border-cyan-200/80 shadow-lg text-white">
+      <span class="text-xl leading-none pointer-events-none">🚀</span>
+      <span class="text-[10px] font-extrabold pointer-events-none">부스터</span>
+      <span class="font-orbitron text-[9px] text-cyan-100 pointer-events-none">HOLD</span>
+      <span id="boostLockIcon" class="hidden absolute inset-0 rounded-full bg-slate-950/75 flex items-center justify-center text-lg pointer-events-none">🔒</span>
+    </button>
   </div>
 
   <!-- ==================== 5. 생존 종료 모달 (뒷배경 실시간 관전 흐림) ==================== -->
   <div id="runOverModal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4 bg-slate-950/45 backdrop-blur-[5px]">
-    <div class="glass-panel rounded-3xl w-full max-w-md p-6 text-center flex flex-col gap-4 border border-slate-600/50">
+    <div class="glass-panel rounded-3xl w-full max-w-md p-6 text-center flex flex-col gap-4 border border-slate-600/50 max-h-[92vh] overflow-y-auto custom-scroll">
       <div class="text-4xl">🪐</div>
       <div>
         <h2 class="text-2xl font-black text-white">별의 생애가 종료되었습니다</h2>
@@ -526,6 +580,14 @@
           <div class="text-[11px] text-slate-400">최대 질량</div>
           <div id="runOverMass" class="font-orbitron text-lg font-black text-sky-300 mt-0.5">30</div>
         </div>
+      </div>
+      <!-- 제한시간 초과 / 교사 경기 종료 시 표시되는 최종 우주 랭킹 -->
+      <div id="runOverRankingBox" class="hidden bg-slate-900/85 border border-sky-500/40 rounded-2xl p-3.5 text-left">
+        <div class="flex items-center justify-between text-xs font-extrabold text-sky-300 border-b border-slate-700/70 pb-1.5 mb-2">
+          <span>🏆 최종 우주 랭킹</span>
+          <span id="runOverRankCount" class="font-orbitron text-[10px] text-slate-400"></span>
+        </div>
+        <div id="runOverRankingList" class="flex flex-col gap-1.5 text-xs max-h-44 overflow-y-auto custom-scroll pr-1"></div>
       </div>
       <div class="flex flex-col gap-2.5 mt-1">
         <button id="btnRunOverUpgrade" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:brightness-110 text-white font-extrabold text-sm shadow-lg transition">
@@ -628,7 +690,7 @@
   </div>
 
   <!-- 로컬 테스트용 기본 퀴즈 파일 로드 시도 (GitHub Pages에서는 같은 폴더의 모든 .js를 자동 탐색) -->
-  <script src="중1 7단원 01태양계 구성원.js" onerror="console.info('기본 퀴즈 파일 없음: GitHub 폴더 자동 탐색 또는 내장 문제집 사용')"></script>
+  <script src="중1 7단원 01태양계 구성원.js" onerror="console.info('기본 퀴즈 파일 없음: GitHub 폴더 자동 탐색 또는 직접 추가 사용')"></script>
 
   <script>
     (function () {
@@ -702,6 +764,7 @@
       ];
 
       const SKILL_ITEMS = [
+        { key: 'gravityUnlocked',  name: '중력장',          icon: '🌀', reqQuiz: 3, desc: '강력한 중력 파동을 일으켜 주변 성간 물질과 경쟁 별들을 끌어당깁니다. (E / 버튼 터치)' },
         { key: 'boostUnlocked',    name: '부스터',          icon: '🚀', reqQuiz: 3, desc: '순간적으로 추진력을 높여 빠르게 이동하거나 위기를 탈출합니다. (Space / 버튼 홀드)' },
         { key: 'flareUnlocked',    name: '플레어',          icon: '🔥', reqQuiz: 3, desc: '드래그로 조준해 강력한 플라스마 불꽃을 발사하여 상대 질량을 감소시킵니다. (Q / 드래그)' },
         { key: 'radarMapUnlocked', name: '우주 레이더 맵',  icon: '🗺️', reqQuiz: 3, desc: '우주 경기장 전체의 경쟁 별들과 블랙홀 위치를 실시간 미니맵으로 확인합니다.' }
@@ -714,61 +777,6 @@
         { key: 'speedBoost',   name: '추진력',           icon: '🛸', maxLv: 5, desc: '기본 이동 속도가 레벨당 +8% 빨라집니다.' },
         { key: 'cooldownRed',  name: '스킬 쿨타임 감소', icon: '⏱️', maxLv: 5, desc: '중력장(E)과 플레어(Q) 재사용 대기시간이 레벨당 -10% 감소합니다. (최대 -50%)' }
       ];
-
-      /* =====================================================================
-         2. 기본 내장 과학 퀴즈 데이터 (외부 .js 파일 없을 때 자동 폴백)
-         ===================================================================== */
-      const BUILTIN_QUIZ_DATA = {
-        required: [
-          { q: "[필수] 태양을 포함하여 태양 주위를 공전하는 천체들과 이들이 차지하는 공간을 무엇이라고 하는지 쓰시오.", a: "태양계" },
-          { q: "[필수] 행성 주위를 공전하는 천체를 무엇이라고 하는지 쓰시오.", a: "위성" },
-          { q: "[필수] 주로 화성과 목성 궤도 사이에서 태양 주위를 공전하는, 암석으로 구성된 불규칙한 모양의 작은 천체는?", a: "소행성" },
-          { q: "[필수] 행성 주위를 공전하는 천체를 무엇이라 하는가?", a: "위성" },
-          { q: "[필수] 태양계에서 스스로 빛을 내는 유일한 천체는 무엇인가?", a: "태양" },
-          { q: "[필수] 다음 중 지구형 행성에 해당하는 것은?", c1: "목성", c2: "토성", c3: "금성", c4: "천왕성", c5: "해왕성", a: "3" },
-          { q: "[필수] 지구형 행성과 목성형 행성 중 일반적으로 반지름이 더 큰 행성 집단은?", c1: "지구형 행성", c2: "목성형 행성", c3: "왜소 행성", a: "2" },
-          { q: "[필수] 다음 중 지구형 행성에 속하는 행성은?", c1: "수성", c2: "목성", c3: "토성", a: "1" },
-          { q: "[필수] 지구형 행성과 비교했을 때, 목성형 행성의 일반적인 특징으로 옳은 것은?", c1: "반지름이 크다.", c2: "위성 수가 적다.", c3: "표면이 고체이다.", a: "1" }
-        ],
-        easy: [
-          { q: "얼음과 먼지로 이루어져 있으며, 태양에 가까워질 때 긴 꼬리가 나타나는 천체는?", a: "혜성" },
-          { q: "지구의 유일한 천연 위성의 이름은 무엇입니까?", a: "달" },
-          { q: "수성, 금성, 지구, 화성은 표면 상태가 (고체/기체)이다.", a: "고체" },
-          { q: "목성, 토성, 천왕성, 해왕성은 표면 상태가 (고체/기체)이다.", a: "기체" },
-          { q: "지구형 행성은 목성형 행성보다 질량이 작다. (O/X)", a: "O" },
-          { q: "목성형 행성은 모두 고리를 가지고 있다. (O/X)", a: "O" },
-          { q: "태양계 행성 중 태양에서 가장 가까운 행성은?", a: "수성" },
-          { q: "태양계 행성 중 크기가 가장 큰 행성은 목성이다. (O/X)", a: "O" },
-          { q: "화성의 표면은 암석과 붉은색 토양으로 이루어져 있다. (O/X)", a: "O" },
-          { q: "태양계 행성 중 고리가 있는 행성은 모두 목성형 행성이다. (O/X)", a: "O" },
-          { q: "금성은 이산화 탄소로 이루어진 두꺼운 대기가 있어 표면 온도가 매우 높다. (O/X)", a: "O" },
-          { q: "수성은 대기가 거의 없어 낮과 밤의 표면 온도 차이가 매우 크다. (O/X)", a: "O" },
-          { q: "해왕성은 태양계에서 가장 바깥쪽에 위치한 행성이다. (O/X)", a: "O" },
-          { q: "행성과 비슷하지만 크기와 질량이 행성보다 작은 천체로, 명왕성이 속하는 분류는?", a: "왜소 행성" },
-          { q: "토성은 태양계에서 두 번째로 큰 행성으로, 뚜렷한 고리가 있다. (O/X)", a: "O" }
-        ],
-        medium: [
-          { q: "다음 중 목성형 행성에 해당하는 것은?", c1: "화성", c2: "토성", c3: "금성", a: "2" },
-          { q: "지구형 행성의 일반적인 특징으로 옳은 것은?", c1: "위성 수가 많다.", c2: "고리가 있다.", c3: "표면이 암석으로 이루어져 있다.", a: "3" },
-          { q: "태양계 행성 중 크기가 가장 큰 것은?", c1: "지구", c2: "목성", c3: "해왕성", a: "2" },
-          { q: "목성형 행성의 특징으로 옳은 것은?", c1: "질량이 작다.", c2: "반지름이 크다.", c3: "위성이 없거나 적다.", a: "2" },
-          { q: "태양계에서 가장 바깥쪽에 위치한 행성은?", c1: "천왕성", c2: "해왕성", c3: "명왕성", a: "2" },
-          { q: "소행성이 주로 분포하는 위치로 옳은 것은?", c1: "지구와 화성 사이", c2: "화성과 목성 사이", c3: "토성과 천왕성 사이", a: "2" },
-          { q: "지구형 행성의 공통적인 특징으로 옳은 것은?", c1: "위성 수가 많다.", c2: "고리가 있다.", c3: "표면이 단단한 암석이다.", a: "3" },
-          { q: "화성에 대한 설명으로 옳은 것은?", c1: "뚜렷한 고리가 있다.", c2: "극지방에 드라이아이스와 얼음으로 된 극관이 있다.", c3: "대기가 매우 두꺼워 표면 온도가 가장 높다.", a: "2" },
-          { q: "목성에 대한 설명으로 옳은 것은?", c1: "표면에 거대한 대기의 소용돌이인 대적점이 나타난다.", c2: "표면이 단단한 고체 상태이다.", c3: "태양계 행성 중 반지름이 가장 작다.", a: "1" },
-          { q: "천왕성의 특징으로 옳은 것은?", c1: "표면에 대흑점이 나타난다.", c2: "자전축이 공전 궤도면과 거의 나란하다.", c3: "고리가 전혀 발견되지 않는다.", a: "2" }
-        ],
-        hard: [
-          { q: "지구형 행성과 목성형 행성을 비교한 설명으로 옳은 것은?", c1: "지구형 행성은 목성형 행성보다 평균 밀도가 작다.", c2: "목성형 행성은 지구형 행성보다 반지름이 작다.", c3: "지구형 행성은 목성형 행성보다 위성 수가 많다.", c4: "목성형 행성은 주로 기체 성분으로 이루어져 있다.", c5: "지구형 행성은 모두 뚜렷한 고리를 가지고 있다.", a: "4" },
-          { q: "태양계 구성 천체에 대한 설명으로 옳은 것은?", c1: "행성은 스스로 빛을 내는 천체이다.", c2: "위성은 태양 주위를 직접 공전하는 천체이다.", c3: "왜소 행성은 행성보다 크기와 질량이 더 크다.", c4: "소행성은 주로 화성과 목성 궤도 사이에서 발견된다.", c5: "혜성은 암석으로만 이루어져 있으며 꼬리가 없다.", a: "4" },
-          { q: "다음 중 목성형 행성만을 옳게 짝지은 것은?", c1: "수성, 금성, 지구, 화성", c2: "목성, 토성, 천왕성, 해왕성", c3: "금성, 화성, 목성, 토성", c4: "지구, 화성, 천왕성, 해왕성", c5: "수성, 목성, 토성, 해왕성", a: "2" },
-          { q: "행성의 특징에 대한 설명으로 옳은 것은?", c1: "수성은 이산화 탄소로 된 두꺼운 대기가 있어 온도가 높다.", c2: "금성은 대기가 거의 없어 낮과 밤의 온도 차가 매우 크다.", c3: "토성은 태양계에서 두 번째로 큰 행성으로 뚜렷한 고리가 있다.", c4: "천왕성은 표면에 대기의 소용돌이인 대흑점이 나타난다.", c5: "해왕성은 자전축과 공전 궤도면이 거의 나란하다.", a: "3" },
-          { q: "지구형 행성과 목성형 행성을 비교한 내용으로 옳은 것은?", c1: "질량은 목성형 행성이 지구형 행성보다 작다.", c2: "위성 수는 지구형 행성이 목성형 행성보다 많다.", c3: "반지름은 목성형 행성이 지구형 행성보다 크다.", c4: "지구형 행성은 모두 고리를 가지고 있다.", c5: "목성형 행성은 모두 단단한 암석 표면을 가지고 있다.", a: "3" },
-          { q: "태양계의 소천체들에 대한 설명으로 옳은 것은?", c1: "위성은 행성 주위가 아닌 태양 주위를 직접 공전하는 천체이다.", c2: "소행성은 주로 목성과 토성 궤도 사이에서 발견된다.", c3: "왜소 행성은 모양이 불규칙하고 크기가 매우 작은 천체들을 말한다.", c4: "혜성은 태양에서 멀어질수록 꼬리의 길이가 길어지는 특징이 있다.", c5: "명왕성은 행성 자격을 미달하여 현재는 왜소 행성으로 분류된다.", a: "5" },
-          { q: "목성형 행성들의 공통적인 특징으로 옳은 것은?", c1: "주로 수소와 헬륨 등의 기체로 이루어져 있다.", c2: "표면에 운석 구덩이가 많이 발견되는 고체 지각이 있다.", c3: "지구보다 반지름이 작고 질량도 가볍다.", c4: "위성이 없거나 있어도 1~2개 정도로 매우 적다.", c5: "태양에서 가까운 곳에 위치하여 표면 온도가 매우 높다.", a: "1" }
-        ]
-      };
 
       /* =====================================================================
          3. 세이브 데이터 관리
@@ -786,7 +794,11 @@
           blackHoleQuizCount: 0,
           blackHoleUnlocked: false,
           activeBranch: 'solar', // 'solar' | 'massive'
+          startProtostarUnlocked: false,
+          startProtostarStreak: 0,
           skills: {
+            gravityUnlocked: 0,
+            gravityQuizCount: 0,
             boostUnlocked: 0,
             boostQuizCount: 0,
             flareUnlocked: 0,
@@ -828,7 +840,7 @@
          4. 퀴즈 풀 파서 & 난이도/중복 방지 출제기
          ===================================================================== */
       const quizPool = {
-        sourceName: '기본 내장 문제집',
+        sourceName: '적용된 퀴즈 파일 없음',
         required: [],
         easy: [],
         medium: [],
@@ -877,8 +889,24 @@
       /* =====================================================================
          5. WebAudio 효과음
          ===================================================================== */
+      const SOUND_MUTE_KEY = 'star_io_sound_muted_v1';
       const SoundFX = {
         ctx: null,
+        muted: (function() { try { return localStorage.getItem('star_io_sound_muted_v1') === '1'; } catch(e) { return false; } })(),
+        toggleMute() {
+          this.muted = !this.muted;
+          try { localStorage.setItem(SOUND_MUTE_KEY, this.muted ? '1' : '0'); } catch (e) {}
+          this.updateButton();
+          if (!this.muted) this.beep(660, 0.08, 'sine', 0.06);
+        },
+        updateButton() {
+          const btn = document.getElementById('btnToggleSound');
+          if (!btn) return;
+          btn.textContent = this.muted ? '🔇 소리 OFF' : '🔊 소리 ON';
+          btn.className = this.muted
+            ? 'px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-bold text-slate-400 transition'
+            : 'px-2.5 py-1.5 rounded-xl glass-panel hover:bg-slate-800/90 border border-slate-600/70 text-[11px] font-bold text-emerald-300 transition';
+        },
         ensure() {
           if (!this.ctx) {
             const AC = window.AudioContext || window.webkitAudioContext;
@@ -887,6 +915,7 @@
           if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
         },
         beep(freq, dur, type = 'sine', gainVal = 0.08, endFreq = null) {
+          if (this.muted) return;
           try {
             this.ensure();
             if (!this.ctx) return;
@@ -930,8 +959,48 @@
         canvas.height = Math.floor(viewH * dpr);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
-      window.addEventListener('resize', resizeCanvas);
+      window.addEventListener('resize', () => {
+        resizeCanvas();
+        if (typeof ControlLayoutManager !== 'undefined') ControlLayoutManager.applyAll();
+      });
       resizeCanvas();
+
+      /* =====================================================================
+         전체화면(Fullscreen) 토글 매니저
+         ===================================================================== */
+      const FullscreenManager = {
+        isFullscreen() {
+          return !!(document.fullscreenElement || document.webkitFullscreenElement);
+        },
+        toggle() {
+          const docEl = document.documentElement;
+          if (!this.isFullscreen()) {
+            const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.msRequestFullscreen;
+            if (req) {
+              Promise.resolve(req.call(docEl)).catch(() => {
+                showToast('이 브라우저에서는 전체화면 전환이 제한되어 있습니다.', 'warn');
+              });
+            }
+          } else {
+            const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+            if (exit) Promise.resolve(exit.call(document)).catch(() => {});
+          }
+        },
+        updateButtons() {
+          const active = this.isFullscreen();
+          document.querySelectorAll('.btn-toggle-fullscreen').forEach((btn) => {
+            btn.textContent = active ? '🗗 창모드' : '⛶ 전체화면';
+          });
+        }
+      };
+      document.addEventListener('fullscreenchange', () => FullscreenManager.updateButtons());
+      document.addEventListener('webkitfullscreenchange', () => FullscreenManager.updateButtons());
+      document.querySelectorAll('.btn-toggle-fullscreen').forEach((btn) => {
+        btn.addEventListener('click', () => FullscreenManager.toggle());
+      });
+      SoundFX.updateButton();
+      const btnSound = document.getElementById('btnToggleSound');
+      if (btnSound) btnSound.addEventListener('click', () => SoundFX.toggleMute());
 
       const gameState = {
         mode: 'LOBBY', // LOBBY | PLAYING | PAUSED | RUN_OVER
@@ -957,7 +1026,8 @@
         currentUpgradeTab: 'evolution',
         returnToRunOverAfterUpgrade: false,
         matchDurationSec: MATCH_DURATION,
-        multiSyncAccum: 0
+        multiSyncAccum: 0,
+        teacherSpectating: false
       };
 
       const inputState = {
@@ -967,8 +1037,11 @@
         moveAngle: 0,
         moveMag: 0,
         touchMoveId: null,
+        mouseMoveActive: false,
         touchOriginX: 0,
         touchOriginY: 0,
+        joyKnobX: 0,
+        joyKnobY: 0,
         boostHeld: false,
         flareAiming: false,
         flareTouchId: null,
@@ -1195,7 +1268,10 @@
         initBgStars();
         for (let i = 0; i < MAX_DUST_COUNT; i++) spawnOneDust();
 
-        const startMass = getStartMass();
+        const startAsProtostar = !!saveData.startProtostarUnlocked;
+        const startMass = startAsProtostar
+          ? getStageById('protostar').minMass + (saveData.stats.startMass || 0) * 22
+          : getStartMass();
         gameState.player = {
           id: MultiplayerBridge.myId || 'player_main',
           isPlayer: true,
@@ -1206,7 +1282,7 @@
           vy: 0,
           mass: startMass,
           maxMass: startMass,
-          stageId: 'dust',
+          stageId: startAsProtostar ? 'protostar' : 'dust',
           invuln: 3.0,
           gravityCooldown: 0,
           flareCooldown: 0,
@@ -1233,8 +1309,10 @@
         document.getElementById('skillModal').classList.add('hidden');
         document.getElementById('rebirthModal').classList.add('hidden');
         document.getElementById('gameHUD').classList.remove('hidden');
+        ControlLayoutManager.applyAll();
 
         document.getElementById('minimapContainer').classList.toggle('hidden', !(saveData.skills.radarMapUnlocked > 0));
+        document.getElementById('gravityLockIcon').classList.toggle('hidden', saveData.skills.gravityUnlocked > 0);
         document.getElementById('boostLockIcon').classList.toggle('hidden', saveData.skills.boostUnlocked > 0);
         document.getElementById('flareLockIcon').classList.toggle('hidden', saveData.skills.flareUnlocked > 0);
 
@@ -1318,7 +1396,12 @@
          ===================================================================== */
       function activateGravitySkill() {
         const p = gameState.player;
-        if (!p || gameState.mode !== 'PLAYING' || p.gravityCooldown > 0) return;
+        if (!p || gameState.mode !== 'PLAYING') return;
+        if (!(saveData.skills.gravityUnlocked > 0)) {
+          showToast('🔒 중력장은 업그레이드 > 스킬 탭에서 해금해야 합니다!', 'warn');
+          return;
+        }
+        if (p.gravityCooldown > 0) return;
         p.gravityCooldown = 9.0 * getCooldownMult();
         const radius = (getEntityRadius(p) + 210) * getGravityRangeMult();
         gameState.gravityWaves.push({
@@ -1506,7 +1589,7 @@
         gameState.elapsed += dt;
         gameState.timeRemaining = Math.max(0, gameState.timeRemaining - dt);
         if (gameState.timeRemaining <= 0) {
-          endPlayerRun('⏱️ 경기 시간이 종료되었습니다! 우주 탐험 수고하셨습니다.');
+          endPlayerRun('⏱️ 경기 시간이 종료되었습니다! 우주 탐험 수고하셨습니다.', true);
           return;
         }
 
@@ -1514,7 +1597,7 @@
         if (p.gravityCooldown > 0) p.gravityCooldown = Math.max(0, p.gravityCooldown - dt);
         if (p.flareCooldown > 0) p.flareCooldown = Math.max(0, p.flareCooldown - dt);
 
-        // 이동 방향 계산
+        // 이동 방향 계산 (가상 조이스틱 전용)
         let dirX = 0;
         let dirY = 0;
         let mag = 0;
@@ -1522,15 +1605,6 @@
           dirX = Math.cos(inputState.moveAngle);
           dirY = Math.sin(inputState.moveAngle);
           mag = inputState.moveMag;
-        } else {
-          const dx = inputState.mouseX - viewW / 2;
-          const dy = inputState.mouseY - viewH / 2;
-          const dist = Math.hypot(dx, dy);
-          if (dist > 14) {
-            dirX = dx / dist;
-            dirY = dy / dist;
-            mag = Math.min(1, dist / 140);
-          }
         }
 
         // 백색왜성·중성자별 냉각(환생 유도) 시 소폭 감속 및 질량 성장 완만화
@@ -1972,7 +2046,7 @@
         }
 
         // 모든 별(봇 + 원격 학생 + 플레이어) 질량 순 정렬
-        const entities = [...gameState.bots];
+        const entities = gameState.mode === 'TEACHER_SPECTATE' ? [] : [...gameState.bots];
         if (gameState.playType === 'MULTI') {
           const nowMs = Date.now();
           gameState.remotePlayers.forEach((rp) => {
@@ -2011,6 +2085,45 @@
         }
 
         ctx.restore();
+
+        // 가상 조이스틱 렌더링 (화면 좌표계)
+        if (gameState.mode === 'PLAYING' && inputState.moveActive) {
+          const ox = inputState.touchOriginX;
+          const oy = inputState.touchOriginY;
+          const kx = inputState.joyKnobX;
+          const ky = inputState.joyKnobY;
+          const baseR = 56;
+          const knobR = 24;
+
+          ctx.save();
+          // 외곽 링
+          ctx.beginPath();
+          ctx.arc(ox, oy, baseR, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.42)';
+          ctx.fill();
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+          ctx.stroke();
+
+          // 중심점 표시
+          ctx.beginPath();
+          ctx.arc(ox, oy, 4, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(148, 163, 184, 0.5)';
+          ctx.fill();
+
+          // 조이스틱 노브
+          const knobGrad = ctx.createRadialGradient(kx - 5, ky - 5, 3, kx, ky, knobR);
+          knobGrad.addColorStop(0, 'rgba(125, 211, 252, 0.95)');
+          knobGrad.addColorStop(1, 'rgba(14, 165, 233, 0.72)');
+          ctx.beginPath();
+          ctx.arc(kx, ky, knobR, 0, Math.PI * 2);
+          ctx.fillStyle = knobGrad;
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = 'rgba(224, 242, 254, 0.85)';
+          ctx.stroke();
+          ctx.restore();
+        }
 
         // 미니맵 렌더링
         if (gameState.mode === 'PLAYING' && saveData.skills.radarMapUnlocked > 0) {
@@ -2116,30 +2229,16 @@
         document.getElementById('flareCdText').textContent = p.flareCooldown > 0 ? `${p.flareCooldown.toFixed(1)}s` : 'READY';
         document.getElementById('antiAmmoText').textContent = `${p.antimatterAmmo}/1`;
 
-        // 리더보드
-        const all = [p, ...gameState.bots];
-        if (gameState.playType === 'MULTI') {
-          const nowMs = Date.now();
-          gameState.remotePlayers.forEach((rp) => {
-            if (rp.alive && nowMs - (rp.updatedAt || 0) <= 15000) all.push(rp);
-          });
-        }
-        all.sort((a, b) => b.mass - a.mass);
-        document.getElementById('hudAliveCount').textContent = `${all.length}명`;
-        document.getElementById('leaderboardList').innerHTML = all.slice(0, 5).map((e, idx) => `
-          <div class="flex items-center justify-between gap-2 ${e.isPlayer ? 'text-amber-300 font-extrabold' : e.isRemotePlayer ? 'text-cyan-300 font-bold' : 'text-slate-200'}">
-            <span class="truncate">${idx + 1}. ${e.isRemotePlayer ? '👤 ' : ''}${e.name}</span>
-            <span class="font-orbitron text-[10px]">${Math.floor(e.mass)}</span>
-          </div>
-        `).join('');
       }
 
-      function endPlayerRun(reasonText) {
+      function endPlayerRun(reasonText, showRanking = false) {
         gameState.mode = 'RUN_OVER';
         inputState.boostHeld = false;
         inputState.flareAiming = false;
         inputState.antiAiming = false;
         inputState.moveActive = false;
+        inputState.mouseMoveActive = false;
+        inputState.touchMoveId = null;
         if (gameState.playType === 'MULTI') MultiplayerBridge.pushPlayerState(false);
         persistSaveData();
         updateLobbyStats();
@@ -2149,6 +2248,45 @@
         document.getElementById('runOverReason').textContent = reasonText;
         document.getElementById('runOverStage').textContent = p ? getDisplayStageName(p.stageId) : '성간 물질';
         document.getElementById('runOverMass').textContent = p ? Math.floor(p.maxMass) : 30;
+
+        const rankBox = document.getElementById('runOverRankingBox');
+        const rankList = document.getElementById('runOverRankingList');
+        const rankCount = document.getElementById('runOverRankCount');
+        if (showRanking && rankBox && rankList) {
+          const all = [];
+          if (p) all.push(p);
+          for (const b of gameState.bots) all.push(b);
+          if (gameState.playType === 'MULTI') {
+            gameState.remotePlayers.forEach((rp) => {
+              all.push(rp);
+            });
+          }
+          all.sort((a, b) => (b.mass || 0) - (a.mass || 0));
+          if (rankCount) rankCount.textContent = `총 ${all.length}명`;
+          rankList.innerHTML = all.slice(0, 15).map((e, idx) => {
+            const stName = getDisplayStageName(e.stageId || 'dust');
+            const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+            return `
+              <div class="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl ${
+                e.isPlayer
+                  ? 'bg-amber-500/20 border border-amber-400/50 text-amber-200 font-extrabold'
+                  : e.isRemotePlayer
+                    ? 'bg-cyan-500/10 text-cyan-200 font-bold'
+                    : 'bg-slate-950/60 text-slate-200'
+              }">
+                <span class="truncate">${medal} ${e.isRemotePlayer ? '👤 ' : ''}${e.name}</span>
+                <span class="shrink-0 flex items-center gap-2">
+                  <span class="text-[10px] text-slate-400">${stName}</span>
+                  <span class="font-orbitron text-[11px] font-bold">${Math.floor(e.mass || 0)}</span>
+                </span>
+              </div>
+            `;
+          }).join('');
+          rankBox.classList.remove('hidden');
+        } else if (rankBox) {
+          rankBox.classList.add('hidden');
+        }
+
         document.getElementById('runOverModal').classList.remove('hidden');
       }
 
@@ -2410,12 +2548,13 @@
 
       function renderSkillsTab(host) {
         const countMap = {
+          gravityUnlocked: 'gravityQuizCount',
           boostUnlocked: 'boostQuizCount',
           flareUnlocked: 'flareQuizCount',
           radarMapUnlocked: 'radarQuizCount'
         };
         host.innerHTML = `
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
             ${SKILL_ITEMS.map((sk) => {
               const unlocked = saveData.skills[sk.key] > 0;
               const cur = saveData.skills[countMap[sk.key]] || 0;
@@ -2448,6 +2587,10 @@
       }
 
       function renderStatsTab(host) {
+        const sgUnlocked = !!saveData.supergiantUnlocked;
+        const protoUnlocked = !!saveData.startProtostarUnlocked;
+        const protoStreak = saveData.startProtostarStreak || 0;
+
         host.innerHTML = `
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             ${STAT_ITEMS.map((st) => {
@@ -2477,11 +2620,45 @@
                 </div>
               `;
             }).join('')}
+
+            <!-- 특수 능력: 원시별부터 시작하기 -->
+            <div class="bg-gradient-to-br from-amber-950/60 via-orange-950/50 to-slate-900/90 border border-amber-400/50 rounded-2xl p-4 flex flex-col justify-between gap-3">
+              <div>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm sm:text-base font-black text-amber-200">🌟 원시별부터 시작하기</span>
+                  <span class="font-orbitron text-xs font-bold ${protoUnlocked ? 'text-emerald-300' : 'text-amber-300'}">${protoUnlocked ? '활성화됨' : `${protoStreak} / 5`}</span>
+                </div>
+                <p class="text-xs text-slate-300 mt-1 leading-relaxed">
+                  출격 시 성간 물질 대신 <strong class="text-amber-300">원시별(질량 340+)</strong> 단계로 바로 시작합니다.
+                </p>
+                <div class="text-[11px] text-slate-300 mt-2 space-y-1">
+                  <div>${sgUnlocked ? '✅' : '⬜'} 선행 조건: 초거성 해금 달성</div>
+                  <div>${protoUnlocked ? '✅' : '⬜'} 활성화 조건: 퀴즈 5문제 연속 정답 <span class="text-rose-300 font-bold">(틀리면 초기화!)</span></div>
+                </div>
+              </div>
+              <button id="btnUnlockStartProtostar" ${protoUnlocked || !sgUnlocked ? 'disabled' : ''} class="w-full py-2.5 rounded-xl text-xs font-extrabold transition ${
+                protoUnlocked
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+                  : sgUnlocked
+                    ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:brightness-110 text-white shadow'
+                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+              }">
+                ${protoUnlocked ? '✓ 원시별부터 시작 활성화 완료' : sgUnlocked ? `🧪 퀴즈 5문제 맞히고 활성화 (${protoStreak}/5)` : '🔒 초거성 해금 필요'}
+              </button>
+            </div>
           </div>
         `;
         host.querySelectorAll('[data-stat-up]').forEach((btn) => {
           btn.onclick = () => startQuizChallenge({ kind: 'stat', key: btn.dataset.statUp });
         });
+        const btnProto = document.getElementById('btnUnlockStartProtostar');
+        if (btnProto) {
+          btnProto.onclick = () => {
+            if (saveData.supergiantUnlocked && !saveData.startProtostarUnlocked) {
+              startQuizChallenge({ kind: 'stat_protostar' });
+            }
+          };
+        }
       }
 
       /* =====================================================================
@@ -2560,7 +2737,8 @@
           progressText = `${saveData.blackHoleQuizCount + 1} / 5`;
         } else if (ctxInfo.kind === 'skill') {
           const sk = SKILL_ITEMS.find((s) => s.key === ctxInfo.key);
-          const countKey = ctxInfo.key === 'boostUnlocked' ? 'boostQuizCount'
+          const countKey = ctxInfo.key === 'gravityUnlocked' ? 'gravityQuizCount'
+            : ctxInfo.key === 'boostUnlocked' ? 'boostQuizCount'
             : ctxInfo.key === 'flareUnlocked' ? 'flareQuizCount' : 'radarQuizCount';
           const cur = saveData.skills[countKey] || 0;
           const diff = getProgressiveDiff(cur, sk.reqQuiz);
@@ -2576,6 +2754,14 @@
           title = `${st.icon} ${st.name} 강화 (Lv.${lv} → Lv.${lv + 1})`;
           diffLabel = diff === 'easy' ? '난이도 하' : diff === 'medium' ? '난이도 중' : '난이도 상';
           progressText = `Lv.${lv + 1}`;
+        } else if (ctxInfo.kind === 'stat_protostar') {
+          const cur = saveData.startProtostarStreak || 0;
+          const diff = getProgressiveDiff(cur, 5);
+          question = pickNonRequiredQuestion(diff);
+          title = '🌟 원시별부터 시작하기 활성화';
+          diffLabel = diff === 'easy' ? '난이도 하' : diff === 'medium' ? '난이도 중' : '난이도 상';
+          progressText = `${cur + 1} / 5`;
+          ruleNotice = '⚠️ 5문제를 틀리지 않고 연속으로 맞혀야 활성화됩니다! 중간에 틀리면 0부터 다시 시작합니다.';
         }
 
         if (!question) {
@@ -2609,11 +2795,22 @@
 
         if (question.type === 'mc' || question.type === 'ox') {
           shortBox.classList.add('hidden');
-          question.choices.forEach((choiceText, idx) => {
+          const optionItems = question.choices.map((choiceText, idx) => ({
+            text: choiceText,
+            isCorrect: idx === question.correctIdx
+          }));
+          // 매 출제마다 보기 위치 무작위 섞기 (Fisher-Yates)
+          if (question.type === 'mc') {
+            for (let i = optionItems.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [optionItems[i], optionItems[j]] = [optionItems[j], optionItems[i]];
+            }
+          }
+          optionItems.forEach((opt, displayIdx) => {
             const btn = document.createElement('button');
             btn.className = 'w-full text-left px-4 py-3 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-600/70 text-xs sm:text-sm font-bold text-slate-100 transition';
-            btn.textContent = question.type === 'ox' ? choiceText : `${idx + 1}. ${choiceText}`;
-            btn.onclick = () => evaluateQuizAnswer(idx === question.correctIdx, btn);
+            btn.textContent = question.type === 'ox' ? opt.text : `${displayIdx + 1}. ${opt.text}`;
+            btn.onclick = () => evaluateQuizAnswer(opt.isCorrect, btn);
             optHost.appendChild(btn);
           });
         } else {
@@ -2683,7 +2880,8 @@
             }
           } else if (activeQuizCtx.kind === 'skill') {
             const sk = SKILL_ITEMS.find((s) => s.key === activeQuizCtx.key);
-            const countKey = activeQuizCtx.key === 'boostUnlocked' ? 'boostQuizCount'
+            const countKey = activeQuizCtx.key === 'gravityUnlocked' ? 'gravityQuizCount'
+              : activeQuizCtx.key === 'boostUnlocked' ? 'boostQuizCount'
               : activeQuizCtx.key === 'flareUnlocked' ? 'flareQuizCount' : 'radarQuizCount';
             saveData.skills[countKey] = (saveData.skills[countKey] || 0) + 1;
             if (saveData.skills[countKey] >= sk.reqQuiz) {
@@ -2696,16 +2894,31 @@
             const st = STAT_ITEMS.find((s) => s.key === activeQuizCtx.key);
             saveData.stats[activeQuizCtx.key] = Math.min(st.maxLv, (saveData.stats[activeQuizCtx.key] || 0) + 1);
             extraMsg = `⚡ [${st.name}] Lv.${saveData.stats[activeQuizCtx.key]} 강화 완료!`;
+          } else if (activeQuizCtx.kind === 'stat_protostar') {
+            saveData.startProtostarStreak = (saveData.startProtostarStreak || 0) + 1;
+            if (saveData.startProtostarStreak >= 5) {
+              saveData.startProtostarUnlocked = true;
+              extraMsg = '🌟 5문제 연속 정답 성공! 이제 [원시별부터 시작하기]가 활성화되었습니다!';
+            } else {
+              extraMsg = `✅ 연속 정답! (${saveData.startProtostarStreak}/5) 다음 문제로 이어집니다.`;
+              autoContinueBasic = 'stat_protostar';
+            }
           }
 
           persistSaveData();
           if (gameState.playType === 'MULTI') MultiplayerBridge.pushPlayerState(gameState.mode === 'PLAYING');
           fbBox.className = 'rounded-2xl p-3.5 text-xs sm:text-sm font-bold bg-emerald-500/20 border border-emerald-400/50 text-emerald-200';
           fbBox.textContent = extraMsg;
-          finishBtn.textContent = autoContinueBasic ? '다음 필수 문제 풀기 →' : '확인';
+          finishBtn.textContent = autoContinueBasic === true
+            ? '다음 필수 문제 풀기 →'
+            : autoContinueBasic === 'stat_protostar'
+              ? '다음 연속 문제 풀기 →'
+              : '확인';
           finishBtn.onclick = () => {
-            if (autoContinueBasic) {
+            if (autoContinueBasic === true) {
               startQuizChallenge({ kind: 'evo_basic' });
+            } else if (autoContinueBasic === 'stat_protostar') {
+              startQuizChallenge({ kind: 'stat_protostar' });
             } else {
               document.getElementById('quizModal').classList.add('hidden');
               renderUpgradeModal();
@@ -2719,6 +2932,10 @@
             saveData.basicReqProgress = 0;
             persistSaveData();
             failMsg = `❌ 오답! 정답은 [${q.ansText}] 입니다. 필수 문제 진행도가 0으로 초기화되어 처음부터 다시 도전해야 합니다.`;
+          } else if (activeQuizCtx.kind === 'stat_protostar') {
+            saveData.startProtostarStreak = 0;
+            persistSaveData();
+            failMsg = `❌ 오답! 정답은 [${q.ansText}] 입니다. 연속 정답 기록이 0으로 초기화되어 처음부터 다시 도전해야 합니다.`;
           }
           fbBox.className = 'rounded-2xl p-3.5 text-xs sm:text-sm font-bold bg-rose-500/20 border border-rose-400/50 text-rose-200';
           fbBox.textContent = failMsg;
@@ -2795,15 +3012,14 @@
             }
           }
 
-          // GitHub 외 환경(로컬 등)이거나 탐색된 파일이 없을 때 기본 항목 유지/등록
-          if (this.catalog.length === 0) {
-            const hasExt = typeof window.quizData === 'object' && window.quizData;
+          // GitHub 외 환경(로컬 등)이거나 탐색된 파일이 없을 때 로컬 .js가 로드된 경우만 등록
+          if (this.catalog.length === 0 && typeof window.quizData === 'object' && window.quizData) {
             this.catalog.push({
               id: 'default_0',
-              title: hasExt ? '중1 7단원 01태양계 구성원 (같은 폴더 자동 연동)' : '기본 내장 과학 문제집 (태양계 구성원)',
-              file: hasExt ? '중1 7단원 01태양계 구성원.js' : null,
+              title: '중1 7단원 01태양계 구성원 (같은 폴더 자동 연동)',
+              file: '중1 7단원 01태양계 구성원.js',
               downloadUrl: null,
-              data: hasExt ? window.quizData : BUILTIN_QUIZ_DATA,
+              data: window.quizData,
               selected: true
             });
           }
@@ -3188,7 +3404,47 @@
                 `;
               }).join('');
             }
-            this.renderTeacherRadar(list);
+            const seen = new Set();
+            const selEl = document.getElementById('spectateTargetSelect');
+            const prevSel = selEl ? selEl.value : 'TOP';
+            let optionsHtml = `<option value="TOP">🏆 1위 학생 자동 추적</option><option value="OVERVIEW">🌌 우주 전체 조망</option>`;
+
+            list.forEach((pl) => {
+              seen.add(pl.id);
+              optionsHtml += `<option value="${pl.id}">👤 ${pl.name || '학생'} (질량 ${Math.floor(pl.mass || 0)})</option>`;
+              const existing = gameState.remotePlayers.get(pl.id);
+              if (existing) {
+                existing.name = pl.name;
+                existing.targetX = pl.x || 0;
+                existing.targetY = pl.y || 0;
+                existing.mass = pl.mass || 30;
+                existing.stageId = pl.stageId || 'dust';
+                existing.alive = !!pl.alive;
+                existing.updatedAt = pl.updatedAt || Date.now();
+              } else {
+                gameState.remotePlayers.set(pl.id, {
+                  id: pl.id,
+                  isPlayer: false,
+                  isRemotePlayer: true,
+                  name: pl.name || '학생',
+                  x: pl.x || 0,
+                  y: pl.y || 0,
+                  targetX: pl.x || 0,
+                  targetY: pl.y || 0,
+                  mass: pl.mass || 30,
+                  stageId: pl.stageId || 'dust',
+                  alive: !!pl.alive,
+                  updatedAt: pl.updatedAt || Date.now()
+                });
+              }
+            });
+            gameState.remotePlayers.forEach((_, key) => {
+              if (!seen.has(key)) gameState.remotePlayers.delete(key);
+            });
+            if (selEl) {
+              selEl.innerHTML = optionsHtml;
+              selEl.value = [...selEl.options].some((o) => o.value === prevSel) ? prevSel : 'TOP';
+            }
           };
           playersRef.on('value', this.playersListener);
 
@@ -3239,30 +3495,23 @@
           }, 500);
         },
 
-        renderTeacherRadar(players) {
-          const rc = document.getElementById('teacherRadarCanvas');
-          if (!rc) return;
-          const rctx = rc.getContext('2d');
-          const w = rc.width;
-          const h = rc.height;
-          const cx = w / 2;
-          const cy = h / 2;
-          const sc = (w * 0.44) / ARENA_RADIUS;
+        enterTeacherSpectate() {
+          gameState.teacherSpectating = true;
+          gameState.mode = 'TEACHER_SPECTATE';
+          gameState.playType = 'MULTI';
+          if (gameState.dusts.length === 0) {
+            for (let i = 0; i < 160; i++) spawnOneDust();
+          }
+          document.getElementById('teacherModal').classList.add('hidden');
+          document.getElementById('lobbyModal').classList.add('hidden');
+          document.getElementById('teacherSpectatorHUD').classList.remove('hidden');
+        },
 
-          rctx.clearRect(0, 0, w, h);
-          rctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-          rctx.lineWidth = 1.5;
-          rctx.beginPath();
-          rctx.arc(cx, cy, w * 0.44, 0, Math.PI * 2);
-          rctx.stroke();
-
-          players.forEach((pl) => {
-            if (!pl.alive) return;
-            rctx.fillStyle = pl.stageId === 'black_hole' ? '#e879f9' : '#38bdf8';
-            rctx.beginPath();
-            rctx.arc(cx + (pl.x || 0) * sc, cy + (pl.y || 0) * sc, 3.5, 0, Math.PI * 2);
-            rctx.fill();
-          });
+        exitTeacherSpectate() {
+          gameState.teacherSpectating = false;
+          gameState.mode = 'LOBBY';
+          document.getElementById('teacherSpectatorHUD').classList.add('hidden');
+          document.getElementById('teacherModal').classList.remove('hidden');
         },
 
         async startTeacherMatch() {
@@ -3391,11 +3640,16 @@
 
             if (meta.status === 'PLAYING' && prevStatus !== 'PLAYING') {
               const elapsed = meta.startedAt ? (Date.now() - meta.startedAt) / 1000 : 0;
-              gameState.matchDurationSec = Math.max(30, (meta.duration || 900) - elapsed);
+              const remain = (meta.duration || 900) - elapsed;
+              if (remain <= 5) {
+                showToast('⏱️ 이미 종료된 경기입니다.', 'warn');
+                return;
+              }
+              gameState.matchDurationSec = Math.max(10, remain);
               if (gameState.mode !== 'PLAYING') startNewMatch('MULTI');
             } else if (meta.status === 'ENDED' && prevStatus === 'PLAYING') {
               if (gameState.mode === 'PLAYING') {
-                endPlayerRun('🔔 선생님이 수업을 종료했습니다! 오늘 우주 탐험 수고하셨습니다.');
+                endPlayerRun('🔔 선생님이 수업을 종료했습니다! 오늘 우주 탐험 수고하셨습니다.', true);
               }
             }
           };
@@ -3440,6 +3694,8 @@
 
           document.getElementById('multiRoomView').classList.add('hidden');
           document.getElementById('multiEntryView').classList.remove('hidden');
+          gameState.teacherSpectating = false;
+          document.getElementById('teacherSpectatorHUD').classList.add('hidden');
           document.getElementById('teacherLiveView').classList.add('hidden');
           document.getElementById('teacherSetupView').classList.remove('hidden');
         }
@@ -3474,16 +3730,45 @@
         if (e.code === 'Space') inputState.boostHeld = false;
       });
 
-      // 터치 이동 (캔버스)
+      // 가상 조이스틱 (화면 왼쪽 영역 터치 / 마우스 드래그)
+      const JOYSTICK_MAX_DIST = 56;
+      function beginJoystick(clientX, clientY) {
+        inputState.touchOriginX = clientX;
+        inputState.touchOriginY = clientY;
+        inputState.joyKnobX = clientX;
+        inputState.joyKnobY = clientY;
+        inputState.moveActive = true;
+        inputState.moveMag = 0;
+      }
+      function updateJoystick(clientX, clientY) {
+        const dx = clientX - inputState.touchOriginX;
+        const dy = clientY - inputState.touchOriginY;
+        const d = Math.hypot(dx, dy);
+        const clamped = Math.min(JOYSTICK_MAX_DIST, d);
+        if (d > 2) {
+          inputState.moveAngle = Math.atan2(dy, dx);
+          inputState.joyKnobX = inputState.touchOriginX + Math.cos(inputState.moveAngle) * clamped;
+          inputState.joyKnobY = inputState.touchOriginY + Math.sin(inputState.moveAngle) * clamped;
+          inputState.moveMag = clamped / JOYSTICK_MAX_DIST;
+        } else {
+          inputState.joyKnobX = inputState.touchOriginX;
+          inputState.joyKnobY = inputState.touchOriginY;
+          inputState.moveMag = 0;
+        }
+      }
+      function endJoystick() {
+        inputState.touchMoveId = null;
+        inputState.mouseMoveActive = false;
+        inputState.moveActive = false;
+        inputState.moveMag = 0;
+      }
+
       canvas.addEventListener('touchstart', (e) => {
-        if (gameState.mode !== 'PLAYING') return;
+        if (gameState.mode !== 'PLAYING' || ControlLayoutManager.editing) return;
         for (const t of e.changedTouches) {
-          if (inputState.touchMoveId === null) {
+          if (inputState.touchMoveId === null && t.clientX <= viewW * 0.55) {
             inputState.touchMoveId = t.identifier;
-            inputState.touchOriginX = t.clientX;
-            inputState.touchOriginY = t.clientY;
-            inputState.moveActive = true;
-            inputState.moveMag = 0;
+            beginJoystick(t.clientX, t.clientY);
           }
         }
       }, { passive: true });
@@ -3492,30 +3777,237 @@
         if (gameState.mode !== 'PLAYING') return;
         for (const t of e.changedTouches) {
           if (t.identifier === inputState.touchMoveId) {
-            const dx = t.clientX - inputState.touchOriginX;
-            const dy = t.clientY - inputState.touchOriginY;
-            const d = Math.hypot(dx, dy);
-            inputState.moveAngle = Math.atan2(dy, dx);
-            inputState.moveMag = Math.min(1, d / 70);
+            updateJoystick(t.clientX, t.clientY);
           }
         }
       }, { passive: true });
 
       canvas.addEventListener('touchend', (e) => {
         for (const t of e.changedTouches) {
-          if (t.identifier === inputState.touchMoveId) {
-            inputState.touchMoveId = null;
-            inputState.moveActive = false;
-            inputState.moveMag = 0;
-          }
+          if (t.identifier === inputState.touchMoveId) endJoystick();
+        }
+      });
+      canvas.addEventListener('touchcancel', (e) => {
+        for (const t of e.changedTouches) {
+          if (t.identifier === inputState.touchMoveId) endJoystick();
         }
       });
 
+      canvas.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || gameState.mode !== 'PLAYING' || ControlLayoutManager.editing) return;
+        if (e.clientX <= viewW * 0.55) {
+          inputState.mouseMoveActive = true;
+          beginJoystick(e.clientX, e.clientY);
+        }
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (inputState.mouseMoveActive && gameState.mode === 'PLAYING') {
+          updateJoystick(e.clientX, e.clientY);
+        }
+      });
+      window.addEventListener('mouseup', () => {
+        if (inputState.mouseMoveActive) endJoystick();
+      });
+
+      /* =====================================================================
+         조작 환경설정 (스킬 버튼 위치 & 크기 커스텀)
+         ===================================================================== */
+      const CONTROL_LAYOUT_KEY = 'star_io_control_layout_v2';
+      const ControlLayoutManager = {
+        editing: false,
+        openedFromOutsideGame: false,
+        scale: 1,
+        // 업로드 이미지 기준 우측 하단 상대 오프셋 (right, bottom px)
+        // 상단 행: 플레어(좌) - 중력장(우) / 하단 행: 반물질(좌, 약간 위·왼쪽) - 부스터(우)
+        positions: {},
+        defaultPositions: {
+          boost:      { right: 28,  bottom: 26 },
+          gravity:    { right: 28,  bottom: 146 },
+          flare:      { right: 138, bottom: 146 },
+          antimatter: { right: 170, bottom: 44 }
+        },
+        btnMap: {
+          boost:      'btnSkillBoost',
+          gravity:    'btnSkillGravity',
+          flare:      'btnSkillFlare',
+          antimatter: 'btnSkillAntimatter'
+        },
+        load() {
+          this.positions = JSON.parse(JSON.stringify(this.defaultPositions));
+          try {
+            const raw = localStorage.getItem(CONTROL_LAYOUT_KEY);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed.scale) this.scale = Math.max(0.75, Math.min(1.35, Number(parsed.scale) || 1));
+              if (parsed.positions) {
+                Object.keys(this.defaultPositions).forEach((k) => {
+                  if (parsed.positions[k]) {
+                    this.positions[k] = {
+                      right: Number(parsed.positions[k].right) ?? this.defaultPositions[k].right,
+                      bottom: Number(parsed.positions[k].bottom) ?? this.defaultPositions[k].bottom
+                    };
+                  }
+                });
+              }
+            }
+          } catch (e) {}
+          const slider = document.getElementById('inputSkillScale');
+          if (slider) slider.value = String(this.scale);
+          this.applyAll();
+        },
+        save() {
+          try {
+            localStorage.setItem(CONTROL_LAYOUT_KEY, JSON.stringify({
+              scale: this.scale,
+              positions: this.positions
+            }));
+          } catch (e) {}
+        },
+        clampPos(btn, right, bottom) {
+          const bw = (btn.offsetWidth || 68) * this.scale;
+          const bh = (btn.offsetHeight || 68) * this.scale;
+          const maxRight = Math.max(8, window.innerWidth - bw - 8);
+          const maxBottom = Math.max(8, window.innerHeight - bh - 8);
+          return {
+            right: Math.max(8, Math.min(maxRight, right)),
+            bottom: Math.max(8, Math.min(maxBottom, bottom))
+          };
+        },
+        applyAll() {
+          Object.entries(this.btnMap).forEach(([key, id]) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            const pos = this.clampPos(btn, this.positions[key].right, this.positions[key].bottom);
+            this.positions[key] = pos;
+            btn.style.right = `${pos.right}px`;
+            btn.style.bottom = `${pos.bottom}px`;
+            btn.style.transform = `scale(${this.scale})`;
+            btn.style.transformOrigin = 'bottom right';
+          });
+        },
+        enterEdit() {
+          if (this.editing) return;
+          const hudEl = document.getElementById('gameHUD');
+          this.openedFromOutsideGame = hudEl.classList.contains('hidden');
+          if (this.openedFromOutsideGame) {
+            hudEl.classList.remove('hidden');
+            hudEl.style.zIndex = '65';
+            this.applyAll();
+          }
+          if (gameState.mode === 'PLAYING') gameState.mode = 'PAUSED';
+          this.editing = true;
+          inputState.boostHeld = false;
+          inputState.flareAiming = false;
+          inputState.antiAiming = false;
+          endJoystick();
+          document.getElementById('controlConfigPanel').classList.remove('hidden');
+          Object.values(this.btnMap).forEach((id) => {
+            const btn = document.getElementById(id);
+            if (btn) btn.classList.add('skill-edit-mode');
+          });
+        },
+        exitEdit(saveChanges = true) {
+          this.editing = false;
+          document.getElementById('controlConfigPanel').classList.add('hidden');
+          Object.values(this.btnMap).forEach((id) => {
+            const btn = document.getElementById(id);
+            if (btn) btn.classList.remove('skill-edit-mode');
+          });
+          if (this.openedFromOutsideGame) {
+            const hudEl = document.getElementById('gameHUD');
+            hudEl.classList.add('hidden');
+            hudEl.style.zIndex = '';
+            this.openedFromOutsideGame = false;
+          }
+          if (saveChanges) {
+            this.save();
+            showToast('✅ 조작 환경설정이 저장되었습니다!', 'success');
+          }
+          if (gameState.mode === 'PAUSED') gameState.mode = 'PLAYING';
+        },
+        reset() {
+          this.scale = 1;
+          this.positions = JSON.parse(JSON.stringify(this.defaultPositions));
+          const slider = document.getElementById('inputSkillScale');
+          if (slider) slider.value = '1';
+          this.applyAll();
+          showToast('↺ 스킬 버튼 위치와 크기가 기본값으로 초기화되었습니다.', 'info');
+        },
+        bindDrag() {
+          Object.entries(this.btnMap).forEach(([key, id]) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            let dragging = false;
+            let startX = 0, startY = 0, origRight = 0, origBottom = 0;
+
+            const onDown = (clientX, clientY) => {
+              if (!this.editing) return;
+              dragging = true;
+              startX = clientX;
+              startY = clientY;
+              origRight = this.positions[key].right;
+              origBottom = this.positions[key].bottom;
+            };
+            const onMove = (clientX, clientY) => {
+              if (!dragging || !this.editing) return;
+              const dx = clientX - startX;
+              const dy = clientY - startY;
+              const clamped = this.clampPos(btn, origRight - dx, origBottom - dy);
+              this.positions[key] = clamped;
+              btn.style.right = `${clamped.right}px`;
+              btn.style.bottom = `${clamped.bottom}px`;
+            };
+            const onUp = () => { dragging = false; };
+
+            btn.addEventListener('mousedown', (e) => {
+              if (!this.editing) return;
+              e.preventDefault();
+              e.stopPropagation();
+              onDown(e.clientX, e.clientY);
+            });
+            window.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
+            window.addEventListener('mouseup', onUp);
+
+            btn.addEventListener('touchstart', (e) => {
+              if (!this.editing) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const t = e.changedTouches[0];
+              onDown(t.clientX, t.clientY);
+            }, { passive: false });
+            btn.addEventListener('touchmove', (e) => {
+              if (!dragging || !this.editing) return;
+              e.preventDefault();
+              const t = e.changedTouches[0];
+              onMove(t.clientX, t.clientY);
+            }, { passive: false });
+            btn.addEventListener('touchend', onUp);
+          });
+
+          const slider = document.getElementById('inputSkillScale');
+          if (slider) {
+            slider.addEventListener('input', () => {
+              this.scale = parseFloat(slider.value) || 1;
+              this.applyAll();
+            });
+          }
+          document.getElementById('btnGlobalControlConfig').onclick = () => { if (this.editing) this.exitEdit(true); else this.enterEdit(); };
+          document.getElementById('btnSaveSkillLayout').onclick = () => this.exitEdit(true);
+          document.getElementById('btnResetSkillLayout').onclick = () => this.reset();
+        }
+      };
+      ControlLayoutManager.load();
+      ControlLayoutManager.bindDrag();
+
       // 스킬 버튼들
-      document.getElementById('btnSkillGravity').onclick = () => activateGravitySkill();
+      document.getElementById('btnSkillGravity').onclick = () => {
+        if (ControlLayoutManager.editing) return;
+        activateGravitySkill();
+      };
 
       const btnBoost = document.getElementById('btnSkillBoost');
       const startBoost = (e) => {
+        if (ControlLayoutManager.editing) return;
         e.preventDefault();
         if (saveData.skills.boostUnlocked > 0) inputState.boostHeld = true;
         else showToast('🔒 부스터는 업그레이드 > 스킬 탭에서 해금하세요!', 'warn');
@@ -3530,6 +4022,7 @@
       // 플레어 드래그 조준
       const btnFlare = document.getElementById('btnSkillFlare');
       const startFlareAim = (x, y, id = null) => {
+        if (ControlLayoutManager.editing) return;
         if (!(saveData.skills.flareUnlocked > 0)) {
           showToast('🔒 플레어는 업그레이드 > 스킬 탭에서 해금하세요!', 'warn');
           return;
@@ -3588,6 +4081,7 @@
       // 반물질 드래그 조준
       const btnAnti = document.getElementById('btnSkillAntimatter');
       const startAntiAim = (x, y, id = null) => {
+        if (ControlLayoutManager.editing) return;
         if (!gameState.player || gameState.player.antimatterAmmo <= 0) {
           showToast('⚛️ 보유한 반물질이 없습니다! 블랙홀 출현 시 맵에서 획득하세요.', 'warn');
           return;
@@ -3728,9 +4222,12 @@
         TeacherQuizManager.addLocalFiles(e.target.files);
         e.target.value = '';
       });
+      const customMinInput = document.getElementById('inputTeacherCustomMin');
       document.querySelectorAll('.btn-teacher-dur').forEach((btn) => {
         btn.onclick = () => {
-          TeacherQuizManager.selectedDuration = parseInt(btn.dataset.duration, 10) || 900;
+          const sec = parseInt(btn.dataset.duration, 10) || 900;
+          TeacherQuizManager.selectedDuration = sec;
+          if (customMinInput) customMinInput.value = Math.round(sec / 60);
           document.querySelectorAll('.btn-teacher-dur').forEach((b) => {
             const active = b === btn;
             b.className = active
@@ -3739,6 +4236,17 @@
           });
         };
       });
+      if (customMinInput) {
+        customMinInput.addEventListener('input', () => {
+          const mins = Math.max(1, Math.min(120, parseInt(customMinInput.value, 10) || 1));
+          TeacherQuizManager.selectedDuration = mins * 60;
+          document.querySelectorAll('.btn-teacher-dur').forEach((b) => {
+            b.className = 'btn-teacher-dur py-2 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 border border-slate-700';
+          });
+        });
+      }
+      document.getElementById('btnTeacherSpectate').onclick = () => MultiplayerBridge.enterTeacherSpectate();
+      document.getElementById('btnExitSpectate').onclick = () => MultiplayerBridge.exitTeacherSpectate();
       document.getElementById('btnTeacherCreateRoom').onclick = () => MultiplayerBridge.createTeacherRoom();
       document.getElementById('btnTeacherStartMatch').onclick = () => MultiplayerBridge.startTeacherMatch();
       document.getElementById('btnTeacherEndMatch').onclick = () => MultiplayerBridge.endTeacherMatch();
@@ -3780,7 +4288,8 @@
       if (typeof window.quizData === 'object' && window.quizData) {
         loadQuizDataObject(window.quizData, '중1 7단원 01태양계 구성원 (같은 폴더)');
       } else {
-        loadQuizDataObject(BUILTIN_QUIZ_DATA, '기본 내장 과학 문제집');
+        const el = document.getElementById('lobbyQuizSourceName');
+        if (el) el.textContent = '적용된 파일 없음 (.js 파일을 불러오세요)';
       }
       // GitHub Pages 환경이면 시작 시 같은 폴더의 .js 퀴즈 파일들을 자동으로 미리 탐색
       if (TeacherQuizManager.parseGitHubPagesInfo()) {
@@ -3800,6 +4309,39 @@
         document.getElementById('teacherModal').classList.remove('hidden');
       }
 
+      function updateTeacherSpectate(dt) {
+        const nowMs = Date.now();
+        const aliveStudents = [];
+        gameState.remotePlayers.forEach((rp) => {
+          if (!rp.alive || nowMs - (rp.updatedAt || 0) > 15000) return;
+          rp.x += (rp.targetX - rp.x) * Math.min(1, dt * 10);
+          rp.y += (rp.targetY - rp.y) * Math.min(1, dt * 10);
+          aliveStudents.push(rp);
+        });
+
+        const targetMode = document.getElementById('spectateTargetSelect')?.value || 'TOP';
+        if (targetMode === 'OVERVIEW' || aliveStudents.length === 0) {
+          gameState.camera.x += (0 - gameState.camera.x) * Math.min(1, dt * 3);
+          gameState.camera.y += (0 - gameState.camera.y) * Math.min(1, dt * 3);
+          const fitZoom = Math.min(viewW, viewH) / (ARENA_RADIUS * 2.15);
+          gameState.camera.zoom += (fitZoom - gameState.camera.zoom) * Math.min(1, dt * 3);
+        } else {
+          aliveStudents.sort((a, b) => b.mass - a.mass);
+          const target = targetMode === 'TOP'
+            ? aliveStudents[0]
+            : (aliveStudents.find((s) => s.id === targetMode) || aliveStudents[0]);
+          gameState.camera.x += (target.x - gameState.camera.x) * Math.min(1, dt * 6);
+          gameState.camera.y += (target.y - gameState.camera.y) * Math.min(1, dt * 6);
+          const pR = getEntityRadius(target);
+          const tZoom = Math.max(0.45, Math.min(1.0, 1.05 - pR * 0.0045));
+          gameState.camera.zoom += (tZoom - gameState.camera.zoom) * Math.min(1, dt * 4);
+        }
+
+        const timerEl = document.getElementById('spectateTimerText');
+        const teacherTimer = document.getElementById('teacherMatchTimer');
+        if (timerEl && teacherTimer) timerEl.textContent = teacherTimer.textContent;
+      }
+
       let lastTime = performance.now();
       function mainLoop(now) {
         const dt = Math.min(0.05, (now - lastTime) / 1000);
@@ -3808,6 +4350,8 @@
         if (gameState.mode === 'PLAYING') {
           updatePlaying(dt);
           updateHUD();
+        } else if (gameState.mode === 'TEACHER_SPECTATE') {
+          updateTeacherSpectate(dt);
         } else if (gameState.mode === 'RUN_OVER' || gameState.mode === 'LOBBY') {
           updateSpectatorMode(dt);
         }
