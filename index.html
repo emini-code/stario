@@ -1,0 +1,1150 @@
+<!-- ... existing code ... -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet" />
+  <!-- Firebase Realtime Database SDK (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <style>
+    * {
+<!-- ... existing code ... -->
+      <!-- 모드 선택 버튼 (교사 / 학생 / 싱글플레이 / 업그레이드) -->
+      <div class="flex flex-col gap-2.5 mt-1">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button id="btnOpenTeacher" class="py-3.5 px-4 rounded-2xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:brightness-110 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base shadow-lg transition">
+            👨‍🏫 교사 화면 (퀴즈 · QR)
+          </button>
+          <button id="btnOpenMulti" class="py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 hover:brightness-110 active:scale-[0.98] text-white font-extrabold text-sm sm:text-base shadow-lg transition">
+            🎒 학생 입장 (방 코드)
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button id="btnStartSingle" class="py-3 px-4 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:brightness-110 active:scale-[0.98] text-white font-extrabold text-sm shadow-md transition">
+            🤖 싱글플레이 연습
+          </button>
+          <button id="btnLobbyUpgrade" class="py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500/90 via-orange-500/90 to-rose-500/90 hover:brightness-110 active:scale-[0.98] text-white font-extrabold text-sm shadow-md transition">
+            ⚡ 업그레이드 (진화 · 스킬)
+          </button>
+        </div>
+      </div>
+
+      <div class="text-[11px] text-slate-400 text-center leading-relaxed">
+        💡 교사가 퀴즈 파일을 선택해 QR코드를 띄우면, 학생들은 태블릿으로 QR을 찍어 같은 우주 서버에서 함께 플레이합니다!
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 3-A. 교사 전용 대시보드 모달 ==================== -->
+  <div id="teacherModal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md">
+    <div class="glass-panel rounded-3xl w-full max-w-5xl p-5 sm:p-6 flex flex-col gap-4 max-h-[94vh] overflow-y-auto custom-scroll border border-fuchsia-400/35">
+      <div class="flex items-center justify-between border-b border-slate-700/70 pb-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-fuchsia-500/20 border border-fuchsia-400/50 text-fuchsia-200">TEACHER MODE</span>
+            <span id="teacherFirebaseStatus" class="text-[11px] font-bold text-emerald-300">● Firebase 서버 연결됨</span>
+          </div>
+          <h2 class="text-lg sm:text-2xl font-black text-white mt-1">👨‍🏫 STAR.IO 교사 수업 관제실</h2>
+        </div>
+        <button id="btnCloseTeacher" class="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold">✕</button>
+      </div>
+
+      <!-- STEP 1: 퀴즈 다중 선택 및 방 설정 -->
+      <div id="teacherSetupView" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="lg:col-span-2 bg-slate-900/80 border border-slate-700/70 rounded-2xl p-4 flex flex-col gap-3">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h3 class="text-sm sm:text-base font-extrabold text-white">📚 1. 수업에 적용할 퀴즈 파일 선택 (다중 선택 가능)</h3>
+              <p class="text-[11px] text-slate-400 mt-0.5">선택한 파일들의 필수 / 하 / 중 / 상 문제가 자동으로 합쳐져 학생들에게 배포됩니다.</p>
+            </div>
+            <label for="teacherQuizFilesInput" class="cursor-pointer px-3 py-2 rounded-xl bg-sky-600/90 hover:bg-sky-500 text-white text-xs font-extrabold transition shadow">
+              📂 quiz 폴더 .js 여러 개 추가
+            </label>
+            <input id="teacherQuizFilesInput" type="file" accept=".js" multiple class="hidden" />
+          </div>
+
+          <div id="teacherQuizList" class="flex flex-col gap-2 max-h-64 overflow-y-auto custom-scroll pr-1"></div>
+
+          <div id="teacherQuizSummary" class="bg-slate-950/80 border border-sky-500/30 rounded-xl px-3.5 py-2.5 text-xs text-sky-200 font-bold flex items-center justify-between flex-wrap gap-2">
+            <span>선택된 문제집: 0개</span>
+            <span class="font-orbitron text-[11px] text-amber-300">필수 0 · 하 0 · 중 0 · 상 0</span>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/80 border border-slate-700/70 rounded-2xl p-4 flex flex-col justify-between gap-4">
+          <div class="flex flex-col gap-3">
+            <h3 class="text-sm sm:text-base font-extrabold text-white">⚙️ 2. 경기 방 설정</h3>
+            <div>
+              <label class="block text-xs font-bold text-slate-400 mb-1.5">경기 제한 시간</label>
+              <div class="grid grid-cols-3 gap-2">
+                <button type="button" data-duration="300" class="btn-teacher-dur py-2 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 border border-slate-700">5분</button>
+                <button type="button" data-duration="600" class="btn-teacher-dur py-2 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 border border-slate-700">10분</button>
+                <button type="button" data-duration="900" class="btn-teacher-dur py-2 rounded-xl text-xs font-extrabold bg-fuchsia-600 text-white border border-fuchsia-400">15분</button>
+              </div>
+            </div>
+            <label class="flex items-center justify-between bg-slate-950/70 border border-slate-800 rounded-xl px-3 py-2.5 cursor-pointer">
+              <span class="text-xs font-bold text-slate-200">빈 자리 AI 봇 채우기</span>
+              <input id="chkTeacherBots" type="checkbox" checked class="w-4 h-4 accent-fuchsia-500" />
+            </label>
+            <div class="text-[11px] text-slate-400 leading-relaxed bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+              💡 <strong>팁:</strong> <code class="text-sky-300">quiz/quiz-list.js</code> 파일을 만들어 두면 목록이 자동으로 표시되며, 위 <strong>[📂 .js 여러 개 추가]</strong> 버튼으로 바로 불러올 수도 있습니다.
+            </div>
+          </div>
+
+          <button id="btnTeacherCreateRoom" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:brightness-110 active:scale-[0.98] text-white font-extrabold text-sm shadow-xl transition">
+            ✨ 방 생성 & QR코드 띄우기
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 2: 실시간 수업 방 & QR코드 & 학생 모니터링 -->
+      <div id="teacherLiveView" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- 좌측: QR코드 & 경기 제어 -->
+        <div class="bg-slate-900/85 border border-fuchsia-400/45 rounded-2xl p-4 flex flex-col items-center text-center gap-3">
+          <div class="w-full flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-400">학생 입장 QR코드</span>
+            <span id="teacherRoomStatusBadge" class="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40">대기 중</span>
+          </div>
+
+          <div class="bg-white p-2.5 rounded-2xl shadow-lg">
+            <img id="teacherQrImg" alt="학생 입장 QR코드" class="w-44 h-44 block"
+              onerror="this.src='https://placehold.co/176x176/0f172a/38bdf8?text=QR+CODE'" />
+          </div>
+
+          <div>
+            <div class="text-[11px] text-slate-400">방 코드</div>
+            <div id="teacherRoomCodeDisplay" class="font-orbitron text-3xl font-black tracking-widest text-fuchsia-300">------</div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 w-full">
+            <button id="btnTeacherZoomQr" class="py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-amber-200">
+              🔍 QR 크게 보기
+            </button>
+            <button id="btnTeacherCopyLink" class="py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-cyan-200">
+              🔗 링크 복사
+            </button>
+          </div>
+
+          <div id="teacherActiveQuizzes" class="w-full text-left bg-slate-950/75 border border-slate-800 rounded-xl p-2.5 text-[11px] text-slate-300"></div>
+
+          <div class="w-full flex flex-col gap-2 mt-1">
+            <button id="btnTeacherStartMatch" class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 text-white font-extrabold text-sm shadow-lg">
+              🚀 전체 학생 경기 시작!
+            </button>
+            <button id="btnTeacherEndMatch" class="hidden w-full py-3 rounded-xl bg-gradient-to-r from-rose-600 to-orange-600 hover:brightness-110 text-white font-extrabold text-sm shadow-lg">
+              ⏹️ 경기 종료 및 결과 집계
+            </button>
+            <button id="btnTeacherCloseRoom" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs">
+              🚪 방 닫고 퀴즈 선택으로 돌아가기
+            </button>
+          </div>
+        </div>
+
+        <!-- 우측: 실시간 접속 학생 현황 & 우주 레이더 -->
+        <div class="lg:col-span-2 flex flex-col gap-4">
+          <div class="bg-slate-900/80 border border-slate-700/70 rounded-2xl p-4 flex-1 flex flex-col gap-3">
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+              <div class="flex items-center gap-2">
+                <h3 class="text-sm sm:text-base font-extrabold text-white">👥 실시간 학생 현황 & 우주 랭킹</h3>
+                <span id="teacherStudentCount" class="font-orbitron text-xs font-bold px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300">0명</span>
+              </div>
+              <span id="teacherMatchTimer" class="font-orbitron text-sm font-bold text-amber-300">15:00</span>
+            </div>
+
+            <div class="overflow-x-auto max-h-64 overflow-y-auto custom-scroll">
+              <table class="w-full text-left text-xs">
+                <thead class="text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th class="py-2 px-2">순위</th>
+                    <th class="py-2 px-2">학생 닉네임</th>
+                    <th class="py-2 px-2">진화 단계</th>
+                    <th class="py-2 px-2 text-right">질량</th>
+                    <th class="py-2 px-2 text-right">퀴즈 정답</th>
+                    <th class="py-2 px-2 text-center">상태</th>
+                  </tr>
+                </thead>
+                <tbody id="teacherStudentTableBody" class="divide-y divide-slate-800/70 text-slate-200">
+                  <tr><td colspan="6" class="py-8 text-center text-slate-400">학생들이 QR코드를 스캔해 입장하기를 기다리는 중...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bg-slate-900/80 border border-slate-700/70 rounded-2xl p-3.5 flex items-center justify-between gap-4">
+            <div class="flex-1">
+              <div class="text-xs font-extrabold text-cyan-300">📡 실시간 교실 우주 레이더</div>
+              <p class="text-[11px] text-slate-400 mt-1">접속한 학생 별들의 실시간 위치와 이동을 한눈에 확인할 수 있습니다.</p>
+            </div>
+            <canvas id="teacherRadarCanvas" width="140" height="140" class="rounded-full bg-slate-950 border border-cyan-500/40 shrink-0"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 교실 TV/프로젝터용 대형 QR 확대 오버레이 -->
+  <div id="qrZoomOverlay" class="hidden fixed inset-0 z-[70] flex items-center justify-center p-6 bg-slate-950/95 backdrop-blur-lg">
+    <div class="flex flex-col items-center gap-5 text-center">
+      <div class="text-xl sm:text-2xl font-black text-white">📱 태블릿 카메라로 QR코드를 스캔하세요!</div>
+      <div class="bg-white p-4 rounded-3xl shadow-2xl">
+        <img id="qrZoomImg" alt="확대 QR코드" class="w-72 h-72 sm:w-96 sm:h-96 block" />
+      </div>
+      <div class="font-orbitron text-4xl sm:text-5xl font-black tracking-widest text-fuchsia-300" id="qrZoomCode">------</div>
+      <button id="btnCloseQrZoom" class="px-8 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-extrabold text-sm">
+        닫기
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== 3-B. 학생 전용 입장 / 대기실 모달 ==================== -->
+  <div id="multiModal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="glass-panel rounded-3xl w-full max-w-md p-5 sm:p-6 flex flex-col gap-4 max-h-[92vh] overflow-y-auto custom-scroll border border-emerald-400/35">
+      <div class="flex items-center justify-between border-b border-slate-700/70 pb-3">
+        <div>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 border border-emerald-400/50 text-emerald-200">STUDENT MODE</span>
+          <h2 class="text-lg sm:text-xl font-black text-white mt-1">🎒 학생 수업 방 입장</h2>
+          <p id="multiConnStatus" class="text-[11px] text-cyan-300 mt-0.5">교사가 띄운 QR코드 또는 6자리 방 코드로 입장하세요.</p>
+        </div>
+        <button id="btnCloseMulti" class="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold">✕</button>
+      </div>
+
+      <!-- 학생 입장 입력 화면 -->
+      <div id="multiEntryView" class="flex flex-col gap-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-400 mb-1">내 별 이름 (닉네임)</label>
+          <input id="studentNameInput" type="text" maxlength="12" placeholder="이름 또는 별명 입력"
+            class="w-full bg-slate-950/80 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-emerald-400" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-400 mb-1">6자리 방 코드</label>
+          <input id="roomCodeInput" type="text" maxlength="6" placeholder="예: A7K2Q9"
+            class="w-full uppercase font-orbitron tracking-widest bg-slate-950/80 border border-slate-700 rounded-xl px-3.5 py-2.5 text-base font-bold text-white focus:outline-none focus:border-emerald-400" />
+        </div>
+        <button id="btnJoinRoom" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 hover:brightness-110 text-white font-extrabold text-sm shadow-lg">
+          🚀 수업 방 입장하기
+        </button>
+      </div>
+
+      <!-- 학생 대기실 화면 -->
+      <div id="multiRoomView" class="hidden flex flex-col gap-3.5">
+        <div class="bg-slate-900/85 border border-emerald-400/40 rounded-2xl p-4 text-center">
+          <div class="text-xs text-slate-400">입장한 수업 방 코드</div>
+          <div id="roomCodeDisplay" class="font-orbitron text-3xl font-black tracking-widest text-emerald-300 mt-0.5">------</div>
+          <div id="studentLoadedQuizBadge" class="mt-2 inline-block px-3 py-1 rounded-full bg-sky-500/20 border border-sky-400/40 text-[11px] font-bold text-sky-200">
+            📚 교사 문제집 자동 연동 완료
+          </div>
+        </div>
+
+        <div class="bg-slate-900/75 border border-slate-700/70 rounded-2xl p-3">
+          <div class="flex items-center justify-between text-xs font-bold text-slate-300 mb-2">
+            <span>👥 함께 대기 중인 친구들</span>
+            <span id="roomPlayerCount" class="font-orbitron text-sky-300">1명</span>
+          </div>
+          <div id="roomPlayerList" class="flex flex-wrap gap-2 max-h-36 overflow-y-auto custom-scroll"></div>
+        </div>
+
+        <div id="studentWaitNotice" class="py-3 px-4 rounded-xl bg-amber-500/15 border border-amber-400/40 text-amber-200 text-xs font-bold text-center animate-pulse">
+          ⏳ 선생님이 경기를 시작하면 자동으로 우주에 출격합니다!
+        </div>
+
+        <div class="flex gap-2">
+          <button id="btnLeaveRoom" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs">방 나가기</button>
+          <button id="btnStudentWaitUpgrade" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-110 text-white font-extrabold text-xs">
+            ⚡ 대기 중 미리 업그레이드
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+<!-- ... existing code ... -->
+  <!-- 기본 quiz 폴더 파일 및 목록 자동 로드 시도 (없어도 안전하게 무시됨) -->
+  <script src="quiz/quiz-list.js" onerror="console.info('quiz/quiz-list.js 없음: 기본 파일 또는 직접 추가 사용')"></script>
+  <script src="quiz/중1 7단원 01태양계 구성원.js" onerror="console.info('외부 quiz .js 파일이 없어 내장 문제집을 사용합니다.')"></script>
+
+  <script>
+    (function () {
+      'use strict';
+
+      /* =====================================================================
+         0. Firebase Realtime Database 초기화 (교사 ↔ 학생 실시간 서버)
+         ===================================================================== */
+      const FIREBASE_CONFIG = {
+        apiKey: "AIzaSyBb400KDWKzQ4EScFRAPhovjVT9ns-fvVM",
+        authDomain: "star-io-7e40f.firebaseapp.com",
+        databaseURL: "https://star-io-7e40f-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "star-io-7e40f",
+        storageBucket: "star-io-7e40f.firebasestorage.app",
+        messagingSenderId: "206293047865",
+        appId: "1:206293047865:web:693c32b36aa02dd4df4be8"
+      };
+
+      let fbDb = null;
+      try {
+        if (window.firebase && window.firebase.initializeApp) {
+          if (!window.firebase.apps.length) {
+            window.firebase.initializeApp(FIREBASE_CONFIG);
+          }
+          fbDb = window.firebase.database();
+        }
+      } catch (err) {
+        console.warn('Firebase 초기화 실패:', err);
+      }
+
+      /* =====================================================================
+         1. 핵심 상수 및 진화 / 업그레이드 정의
+<!-- ... existing code ... -->
+        antimatters: [],
+        antimatterSpawnTimer: 0,
+        bots: [],
+        remotePlayers: new Map(), // 실시간 Firebase 접속 다른 학생들
+        player: null,
+        gravityWaves: [],
+        antimatterProjectiles: [],
+        supernovaProjectiles: [],
+        floatingTexts: [],
+        camera: { x: 0, y: 0, zoom: 1 },
+        recentQuestionTexts: [],
+        usedDiffQuestionMap: { easy: new Set(), medium: new Set(), hard: new Set() },
+        currentUpgradeTab: 'evolution',
+        returnToRunOverAfterUpgrade: false,
+        matchDurationSec: MATCH_DURATION,
+        multiSyncAccum: 0
+      };
+<!-- ... existing code ... -->
+      function startNewMatch(playType = 'SINGLE') {
+        const nameInput = document.getElementById('playerNameInput');
+        const studentInput = document.getElementById('studentNameInput');
+        const rawName = (playType === 'MULTI' && studentInput && studentInput.value.trim())
+          ? studentInput.value
+          : (nameInput ? nameInput.value : '별의 여행자');
+        const pName = (rawName || '별의 여행자').trim().slice(0, 12);
+
+        gameState.mode = 'PLAYING';
+        gameState.playType = playType;
+        gameState.timeRemaining = playType === 'MULTI' ? (gameState.matchDurationSec || MATCH_DURATION) : MATCH_DURATION;
+        gameState.elapsed = 0;
+        gameState.blackHoleAppeared = false;
+        gameState.dustPalette = DUST_PALETTES[Math.floor(Math.random() * DUST_PALETTES.length)];
+        gameState.dusts = [];
+        gameState.antimatters = [];
+        gameState.antimatterSpawnTimer = 0;
+        gameState.bots = [];
+        gameState.gravityWaves = [];
+        gameState.antimatterProjectiles = [];
+        gameState.supernovaProjectiles = [];
+        gameState.floatingTexts = [];
+        document.getElementById('minimapBhBadge').classList.add('hidden');
+
+        initBgStars();
+        for (let i = 0; i < MAX_DUST_COUNT; i++) spawnOneDust();
+
+        const startMass = getStartMass();
+        gameState.player = {
+          id: MultiplayerBridge.myId || 'player_main',
+          isPlayer: true,
+          name: pName,
+          x: (Math.random() - 0.5) * 600,
+          y: (Math.random() - 0.5) * 600,
+          vx: 0,
+          vy: 0,
+          mass: startMass,
+          maxMass: startMass,
+          stageId: 'dust',
+          invuln: 3.0,
+          gravityCooldown: 0,
+          flareCooldown: 0,
+          antimatterAmmo: 0,
+          rebirthDustCount: 0,
+          lockedWarnedStage: null
+        };
+
+        const botCount = playType === 'MULTI'
+          ? (MultiplayerBridge.roomIncludeBots ? 14 : 0)
+          : BOT_COUNT;
+        for (let i = 0; i < botCount; i++) {
+          gameState.bots.push(spawnBot(i));
+        }
+
+        gameState.camera.x = gameState.player.x;
+        gameState.camera.y = gameState.player.y;
+        gameState.camera.zoom = 1;
+
+        // UI 전환
+        document.getElementById('lobbyModal').classList.add('hidden');
+        document.getElementById('multiModal').classList.add('hidden');
+        document.getElementById('teacherModal').classList.add('hidden');
+        document.getElementById('runOverModal').classList.add('hidden');
+        document.getElementById('skillModal').classList.add('hidden');
+        document.getElementById('rebirthModal').classList.add('hidden');
+        document.getElementById('gameHUD').classList.remove('hidden');
+
+        // 레이더 맵 해금 여부 반영
+        document.getElementById('minimapContainer').classList.toggle('hidden', !(saveData.skills.radarMapUnlocked > 0));
+        // 부스터 / 플레어 잠금 아이콘
+        document.getElementById('boostLockIcon').classList.toggle('hidden', saveData.skills.boostUnlocked > 0);
+        document.getElementById('flareLockIcon').classList.toggle('hidden', saveData.skills.flareUnlocked > 0);
+
+        checkPlayerAutoEvolution();
+        if (playType === 'MULTI') MultiplayerBridge.pushPlayerState(true);
+        updateHUD();
+      }
+<!-- ... existing code ... -->
+        // 플로팅 텍스트 업데이트
+        for (let i = gameState.floatingTexts.length - 1; i >= 0; i--) {
+          const ft = gameState.floatingTexts[i];
+          ft.y -= 28 * dt;
+          ft.life -= dt;
+          if (ft.life <= 0) gameState.floatingTexts.splice(i, 1);
+        }
+
+        // 멀티플레이 원격 학생 보간 및 충돌 처리
+        if (gameState.playType === 'MULTI') {
+          const nowMs = Date.now();
+          gameState.remotePlayers.forEach((rp) => {
+            if (!rp.alive || nowMs - (rp.updatedAt || 0) > 15000) return;
+            rp.x += (rp.targetX - rp.x) * Math.min(1, dt * 10);
+            rp.y += (rp.targetY - rp.y) * Math.min(1, dt * 10);
+
+            const rpR = getEntityRadius(rp);
+            const distR = Math.hypot(p.x - rp.x, p.y - rp.y);
+            if (distR < pR + rpR - Math.min(pR, rpR) * 0.35) {
+              if (rp.mass > p.mass * 1.12 && p.invuln <= 0) {
+                const killerStage = getDisplayStageName(rp.stageId);
+                endPlayerRun(`👤 [${rp.name}] (${killerStage})의 강한 중력에 흡수되었습니다.`);
+                return;
+              } else if (p.mass > rp.mass * 1.12 && (rp.invuln || 0) <= 0 && !rp.justEatenByMe) {
+                rp.justEatenByMe = true;
+                setTimeout(() => { rp.justEatenByMe = false; }, 2500);
+                const gain = rp.mass * 0.35 * getFusionMult();
+                p.mass += gain;
+                addFloatingText(rp.x, rp.y, `+${Math.floor(gain)} 흡수!`, '#34d399');
+                SoundFX.eat();
+                checkPlayerAutoEvolution();
+              }
+            }
+          });
+
+          // 10Hz로 내 위치/질량/단계/퀴즈 수를 Firebase로 송신
+          gameState.multiSyncAccum += dt;
+          if (gameState.multiSyncAccum >= 0.1) {
+            gameState.multiSyncAccum = 0;
+            MultiplayerBridge.pushPlayerState(true);
+          }
+        }
+
+        // 카메라 부드러운 추적 및 줌
+        const targetZoom = Math.max(0.52, Math.min(1.12, 1.15 - pR * 0.0052));
+<!-- ... existing code ... -->
+        // 이름 & 단계 라벨 (미해금 천체는 ???)
+        const stageLabel = getDisplayStageName(ent.stageId);
+        ctx.textAlign = 'center';
+        ctx.font = '700 13px "Noto Sans KR", sans-serif';
+        ctx.fillStyle = ent.isRemotePlayer ? '#67e8f9' : '#ffffff';
+        ctx.fillText((ent.isRemotePlayer ? '👤 ' : '') + ent.name, 0, -r - 12);
+        ctx.font = '600 11px "Noto Sans KR", sans-serif';
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillText(`${stageLabel} (${Math.floor(ent.mass)})`, 0, r + 16);
+
+        ctx.restore();
+      }
+<!-- ... existing code ... -->
+        // 모든 별(봇 + 원격 학생 + 플레이어) 질량 순 정렬 후 그리기
+        const entities = [...gameState.bots];
+        if (gameState.playType === 'MULTI') {
+          const nowMs = Date.now();
+          gameState.remotePlayers.forEach((rp) => {
+            if (rp.alive && nowMs - (rp.updatedAt || 0) <= 15000) entities.push(rp);
+          });
+        }
+        if (gameState.player && gameState.mode !== 'RUN_OVER') entities.push(gameState.player);
+        entities.sort((a, b) => a.mass - b.mass);
+        for (const ent of entities) drawEntity(ent);
+<!-- ... existing code ... -->
+        // 봇 표시
+        for (const b of gameState.bots) {
+          minimapCtx.fillStyle = b.stageId === 'black_hole' ? '#c084fc' : 'rgba(148, 163, 184, 0.75)';
+          minimapCtx.beginPath();
+          minimapCtx.arc(cx + b.x * scale, cy + b.y * scale, b.stageId === 'black_hole' ? 4 : 2, 0, Math.PI * 2);
+          minimapCtx.fill();
+        }
+
+        // 원격 학생 표시
+        if (gameState.playType === 'MULTI') {
+          const nowMs = Date.now();
+          gameState.remotePlayers.forEach((rp) => {
+            if (!rp.alive || nowMs - (rp.updatedAt || 0) > 15000) return;
+            minimapCtx.fillStyle = '#fbbf24';
+            minimapCtx.beginPath();
+            minimapCtx.arc(cx + rp.x * scale, cy + rp.y * scale, 3.2, 0, Math.PI * 2);
+            minimapCtx.fill();
+          });
+        }
+
+        // 플레이어 위치
+<!-- ... existing code ... -->
+        // 리더보드
+        const all = [p, ...gameState.bots];
+        if (gameState.playType === 'MULTI') {
+          const nowMs = Date.now();
+          gameState.remotePlayers.forEach((rp) => {
+            if (rp.alive && nowMs - (rp.updatedAt || 0) <= 15000) all.push(rp);
+          });
+        }
+        all.sort((a, b) => b.mass - a.mass);
+        document.getElementById('hudAliveCount').textContent = `${all.length}명`;
+        const lb = document.getElementById('leaderboardList');
+        lb.innerHTML = all.slice(0, 5).map((e, idx) => `
+          <div class="flex items-center justify-between gap-2 ${e.isPlayer ? 'text-amber-300 font-extrabold' : e.isRemotePlayer ? 'text-cyan-300 font-bold' : 'text-slate-200'}">
+            <span class="truncate">${idx + 1}. ${e.isRemotePlayer ? '👤 ' : ''}${e.name}</span>
+            <span class="font-orbitron text-[10px]">${Math.floor(e.mass)}</span>
+          </div>
+        `).join('');
+      }
+
+      function endPlayerRun(reasonText) {
+        gameState.mode = 'RUN_OVER';
+        inputState.boostHeld = false;
+        inputState.flareAiming = false;
+        inputState.antiAiming = false;
+        inputState.moveActive = false;
+        if (gameState.playType === 'MULTI') MultiplayerBridge.pushPlayerState(false);
+        persistSaveData();
+        updateLobbyStats();
+<!-- ... existing code ... -->
+      /* =====================================================================
+         14. 교사 퀴즈 관리자 & Firebase Realtime Database 멀티플레이 브리지
+         ===================================================================== */
+      const TeacherQuizManager = {
+        catalog: [], // { id, title, file, data, selected }
+        selectedDuration: 900,
+
+        init() {
+          this.catalog = [];
+          // 1) quiz/quiz-list.js 가 있으면 목록 자동 등록
+          if (Array.isArray(window.QUIZ_FILE_LIST) && window.QUIZ_FILE_LIST.length > 0) {
+            window.QUIZ_FILE_LIST.forEach((item, idx) => {
+              this.catalog.push({
+                id: 'list_' + idx,
+                title: item.title || item.file,
+                file: item.file,
+                data: null,
+                selected: idx === 0
+              });
+            });
+          }
+          // 2) 기본 로드된 quizData 또는 내장 문제집 등록
+          if (this.catalog.length === 0) {
+            const hasExt = typeof window.quizData === 'object' && window.quizData;
+            this.catalog.push({
+              id: 'default_0',
+              title: hasExt ? '중1 7단원 01태양계 구성원 (quiz 폴더 자동 연동)' : '기본 내장 과학 문제집 (태양계 구성원)',
+              file: hasExt ? '중1 7단원 01태양계 구성원.js' : null,
+              data: hasExt ? window.quizData : BUILTIN_QUIZ_DATA,
+              selected: true
+            });
+          }
+          this.renderList();
+        },
+
+        async ensureItemLoaded(item) {
+          if (item.data) return item.data;
+          if (!item.file) return null;
+          try {
+            const res = await fetch('quiz/' + encodeURIComponent(item.file));
+            if (!res.ok) throw new Error('fetch failed');
+            const code = await res.text();
+            const fn = new Function(code + '; return typeof quizData !== "undefined" ? quizData : null;');
+            const parsed = fn();
+            if (parsed) item.data = parsed;
+          } catch (e) {
+            // file:// 환경 대응: 동적 script 태그 폴백
+            try {
+              await new Promise((resolve) => {
+                window.quizData = undefined;
+                const sc = document.createElement('script');
+                sc.src = 'quiz/' + item.file;
+                sc.onload = () => {
+                  if (window.quizData) item.data = JSON.parse(JSON.stringify(window.quizData));
+                  sc.remove();
+                  resolve();
+                };
+                sc.onerror = () => { sc.remove(); resolve(); };
+                document.head.appendChild(sc);
+              });
+            } catch (err) {}
+          }
+          return item.data;
+        },
+
+        addLocalFiles(fileList) {
+          const files = Array.from(fileList || []);
+          if (!files.length) return;
+          let loadedCount = 0;
+          files.forEach((file) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              try {
+                const code = String(reader.result || '');
+                const fn = new Function(code + '; return typeof quizData !== "undefined" ? quizData : null;');
+                const parsed = fn();
+                if (parsed) {
+                  const title = file.name.replace(/\.js$/i, '');
+                  const exist = this.catalog.find((c) => c.title === title);
+                  if (exist) {
+                    exist.data = parsed;
+                    exist.selected = true;
+                  } else {
+                    this.catalog.push({
+                      id: 'upload_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                      title,
+                      file: file.name,
+                      data: parsed,
+                      selected: true
+                    });
+                  }
+                  loadedCount++;
+                }
+              } catch (err) {
+                showToast(`[${file.name}] 파일을 해석할 수 없습니다.`, 'warn');
+              }
+              this.renderList();
+              if (loadedCount === files.length) {
+                showToast(`📚 ${loadedCount}개 퀴즈 파일이 목록에 추가되었습니다!`, 'success');
+              }
+            };
+            reader.readAsText(file, 'utf-8');
+          });
+        },
+
+        async buildMergedQuizData() {
+          const selectedItems = this.catalog.filter((c) => c.selected);
+          const merged = { required: [], easy: [], medium: [], hard: [] };
+          const titles = [];
+
+          for (const item of selectedItems) {
+            const data = await this.ensureItemLoaded(item);
+            if (!data) continue;
+            titles.push(item.title);
+            ['required', 'easy', 'medium', 'hard'].forEach((cat) => {
+              if (Array.isArray(data[cat])) {
+                data[cat].forEach((q) => merged[cat].push(q));
+              }
+            });
+          }
+          return { merged, titles };
+        },
+
+        renderList() {
+          const listEl = document.getElementById('teacherQuizList');
+          if (!listEl) return;
+
+          if (!this.catalog.length) {
+            listEl.innerHTML = `<div class="text-xs text-slate-400 text-center py-6">불러온 퀴즈 파일이 없습니다. 위 버튼으로 quiz 폴더의 .js 파일을 추가하세요.</div>`;
+          } else {
+            listEl.innerHTML = this.catalog.map((item) => {
+              const counts = item.data
+                ? `필수 ${(item.data.required || []).length} · 하 ${(item.data.easy || []).length} · 중 ${(item.data.medium || []).length} · 상 ${(item.data.hard || []).length}`
+                : '방 생성 시 자동 로드';
+              return `
+                <label class="flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                  item.selected
+                    ? 'bg-fuchsia-950/45 border-fuchsia-400/60'
+                    : 'bg-slate-950/60 border-slate-800 hover:border-slate-600'
+                }">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <input type="checkbox" data-cat-id="${item.id}" class="chk-teacher-quiz w-4 h-4 accent-fuchsia-500 shrink-0" ${item.selected ? 'checked' : ''} />
+                    <div class="min-w-0">
+                      <div class="text-xs sm:text-sm font-bold text-white truncate">${item.title}</div>
+                      <div class="text-[11px] text-slate-400 mt-0.5">${counts}</div>
+                    </div>
+                  </div>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${item.selected ? 'bg-fuchsia-500/25 text-fuchsia-200' : 'bg-slate-800 text-slate-400'}">
+                    ${item.selected ? '선택됨' : '미선택'}
+                  </span>
+                </label>
+              `;
+            }).join('');
+
+            listEl.querySelectorAll('.chk-teacher-quiz').forEach((chk) => {
+              chk.onchange = () => {
+                const target = this.catalog.find((c) => c.id === chk.dataset.catId);
+                if (target) {
+                  target.selected = chk.checked;
+                  this.renderList();
+                }
+              };
+            });
+          }
+
+          // 요약 계산
+          const sel = this.catalog.filter((c) => c.selected);
+          let r = 0, e = 0, m = 0, h = 0;
+          sel.forEach((c) => {
+            if (c.data) {
+              r += (c.data.required || []).length;
+              e += (c.data.easy || []).length;
+              m += (c.data.medium || []).length;
+              h += (c.data.hard || []).length;
+            }
+          });
+          const sumEl = document.getElementById('teacherQuizSummary');
+          if (sumEl) {
+            sumEl.innerHTML = `
+              <span>선택된 문제집: <strong class="text-white">${sel.length}개</strong></span>
+              <span class="font-orbitron text-[11px] text-amber-300">필수 ${r} · 하 ${e} · 중 ${m} · 상 ${h}</span>
+            `;
+          }
+        }
+      };
+
+      const MultiplayerBridge = {
+        roomCode: null,
+        role: null, // 'TEACHER' | 'STUDENT'
+        roomIncludeBots: true,
+        myId: 'p_' + Math.random().toString(36).slice(2, 10),
+        roomRef: null,
+        metaListener: null,
+        playersListener: null,
+        teacherTimerInterval: null,
+        roomStartedAt: null,
+        roomDuration: 900,
+        lastStatus: null,
+
+        generateCode() {
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+          let code = '';
+          for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+          return code;
+        },
+
+        getInviteUrl(code) {
+          const base = `${window.location.origin}${window.location.pathname}`;
+          return `${base}?room=${code}`;
+        },
+
+        async createTeacherRoom() {
+          if (!fbDb) {
+            showToast('Firebase 서버에 연결할 수 없습니다. 인터넷 연결을 확인하세요.', 'warn');
+            return;
+          }
+          const { merged, titles } = await TeacherQuizManager.buildMergedQuizData();
+          if (titles.length === 0) {
+            showToast('최소 1개 이상의 퀴즈 파일을 선택해 주세요!', 'warn');
+            return;
+          }
+
+          this.leave();
+          const code = this.generateCode();
+          this.roomCode = code;
+          this.role = 'TEACHER';
+          this.roomDuration = TeacherQuizManager.selectedDuration || 900;
+          this.roomIncludeBots = !!document.getElementById('chkTeacherBots').checked;
+
+          this.roomRef = fbDb.ref('rooms/' + code);
+          try {
+            await this.roomRef.set({
+              meta: {
+                status: 'WAITING',
+                createdAt: Date.now(),
+                startedAt: null,
+                duration: this.roomDuration,
+                includeBots: this.roomIncludeBots,
+                quizTitles: titles
+              },
+              quizData: merged,
+              players: {}
+            });
+          } catch (err) {
+            showToast('방 생성에 실패했습니다. Firebase Realtime Database 규칙을 확인하세요.', 'warn');
+            return;
+          }
+
+          // UI 전환 (교사 라이브 관제실)
+          document.getElementById('teacherSetupView').classList.add('hidden');
+          document.getElementById('teacherLiveView').classList.remove('hidden');
+          document.getElementById('teacherRoomCodeDisplay').textContent = code;
+          document.getElementById('qrZoomCode').textContent = code;
+
+          const inviteUrl = this.getInviteUrl(code);
+          const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(inviteUrl)}`;
+          document.getElementById('teacherQrImg').src = qrSrc;
+          document.getElementById('qrZoomImg').src = qrSrc;
+          document.getElementById('teacherActiveQuizzes').innerHTML =
+            `<div class="font-bold text-sky-300 mb-1">📚 적용된 퀴즈 (${titles.length}개)</div>` +
+            titles.map((t) => `<div class="truncate">• ${t}</div>`).join('');
+          document.getElementById('teacherMatchTimer').textContent = formatTime(this.roomDuration);
+
+          this.attachTeacherListeners();
+          showToast(`✨ 수업 방 [${code}]이 생성되었습니다! 학생들에게 QR코드를 보여주세요.`, 'success');
+        },
+
+        attachTeacherListeners() {
+          if (!this.roomRef) return;
+          const playersRef = this.roomRef.child('players');
+          this.playersListener = (snap) => {
+            const val = snap.val() || {};
+            const list = Object.values(val).sort((a, b) => (b.mass || 0) - (a.mass || 0));
+            document.getElementById('teacherStudentCount').textContent = `${list.length}명`;
+
+            const tbody = document.getElementById('teacherStudentTableBody');
+            if (!list.length) {
+              tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">학생들이 QR코드를 스캔해 입장하기를 기다리는 중...</td></tr>`;
+            } else {
+              tbody.innerHTML = list.map((pl, idx) => {
+                const st = getStageById(pl.stageId || 'dust');
+                const statusBadge = pl.alive
+                  ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">생존</span>'
+                  : '<span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-bold">대기/정비</span>';
+                return `
+                  <tr class="hover:bg-slate-800/40">
+                    <td class="py-2 px-2 font-orbitron font-bold text-amber-300">${idx + 1}</td>
+                    <td class="py-2 px-2 font-bold text-white">${pl.name || '학생'}</td>
+                    <td class="py-2 px-2 text-sky-200">${st.icon} ${st.name}</td>
+                    <td class="py-2 px-2 text-right font-orbitron font-bold text-cyan-300">${Math.floor(pl.mass || 0)}</td>
+                    <td class="py-2 px-2 text-right font-orbitron text-emerald-300">${pl.quizSolved || 0}</td>
+                    <td class="py-2 px-2 text-center">${statusBadge}</td>
+                  </tr>
+                `;
+              }).join('');
+            }
+            this.renderTeacherRadar(list);
+          };
+          playersRef.on('value', this.playersListener);
+
+          const metaRef = this.roomRef.child('meta');
+          this.metaListener = (snap) => {
+            const meta = snap.val();
+            if (!meta) return;
+            const badge = document.getElementById('teacherRoomStatusBadge');
+            const btnStart = document.getElementById('btnTeacherStartMatch');
+            const btnEnd = document.getElementById('btnTeacherEndMatch');
+
+            if (meta.status === 'PLAYING') {
+              badge.textContent = '경기 진행 중';
+              badge.className = 'text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 animate-pulse';
+              btnStart.classList.add('hidden');
+              btnEnd.classList.remove('hidden');
+              this.roomStartedAt = meta.startedAt || Date.now();
+              this.startTeacherCountdown();
+            } else if (meta.status === 'ENDED') {
+              badge.textContent = '경기 종료됨';
+              badge.className = 'text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-400/50';
+              btnStart.classList.remove('hidden');
+              btnStart.textContent = '🔄 새 경기 다시 시작하기';
+              btnEnd.classList.add('hidden');
+              if (this.teacherTimerInterval) clearInterval(this.teacherTimerInterval);
+            } else {
+              badge.textContent = '대기 중';
+              badge.className = 'text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40';
+              btnStart.classList.remove('hidden');
+              btnStart.textContent = '🚀 전체 학생 경기 시작!';
+              btnEnd.classList.add('hidden');
+            }
+          };
+          metaRef.on('value', this.metaListener);
+        },
+
+        startTeacherCountdown() {
+          if (this.teacherTimerInterval) clearInterval(this.teacherTimerInterval);
+          this.teacherTimerInterval = setInterval(() => {
+            if (!this.roomStartedAt) return;
+            const elapsed = (Date.now() - this.roomStartedAt) / 1000;
+            const remain = Math.max(0, this.roomDuration - elapsed);
+            document.getElementById('teacherMatchTimer').textContent = formatTime(remain);
+            if (remain <= 0) {
+              clearInterval(this.teacherTimerInterval);
+              this.endTeacherMatch();
+            }
+          }, 500);
+        },
+
+        renderTeacherRadar(players) {
+          const rc = document.getElementById('teacherRadarCanvas');
+          if (!rc) return;
+          const rctx = rc.getContext('2d');
+          const w = rc.width;
+          const h = rc.height;
+          const cx = w / 2;
+          const cy = h / 2;
+          const sc = (w * 0.44) / ARENA_RADIUS;
+
+          rctx.clearRect(0, 0, w, h);
+          rctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+          rctx.lineWidth = 1.5;
+          rctx.beginPath();
+          rctx.arc(cx, cy, w * 0.44, 0, Math.PI * 2);
+          rctx.stroke();
+
+          players.forEach((pl) => {
+            if (!pl.alive) return;
+            rctx.fillStyle = pl.stageId === 'black_hole' ? '#e879f9' : '#38bdf8';
+            rctx.beginPath();
+            rctx.arc(cx + (pl.x || 0) * sc, cy + (pl.y || 0) * sc, 3.5, 0, Math.PI * 2);
+            rctx.fill();
+          });
+        },
+
+        async startTeacherMatch() {
+          if (!this.roomRef || this.role !== 'TEACHER') return;
+          await this.roomRef.child('meta').update({
+            status: 'PLAYING',
+            startedAt: Date.now()
+          });
+          showToast('🚀 모든 학생 기기에서 우주 경기가 시작되었습니다!', 'success');
+        },
+
+        async endTeacherMatch() {
+          if (!this.roomRef || this.role !== 'TEACHER') return;
+          await this.roomRef.child('meta').update({ status: 'ENDED' });
+          showToast('⏹️ 수업 경기가 종료되었습니다!', 'info');
+        },
+
+        async joinStudentRoom(codeRaw) {
+          if (!fbDb) {
+            showToast('Firebase 서버에 연결할 수 없습니다.', 'warn');
+            return;
+          }
+          const code = String(codeRaw || '').trim().toUpperCase();
+          if (code.length < 4) {
+            showToast('6자리 방 코드를 정확히 입력해 주세요.', 'warn');
+            return;
+          }
+          const nameEl = document.getElementById('studentNameInput');
+          const myName = (nameEl && nameEl.value.trim()) || (document.getElementById('playerNameInput').value || '우주 탐험가').trim();
+          if (nameEl) nameEl.value = myName;
+          document.getElementById('playerNameInput').value = myName;
+
+          const ref = fbDb.ref('rooms/' + code);
+          const snap = await ref.once('value');
+          const roomVal = snap.val();
+          if (!roomVal || !roomVal.meta) {
+            showToast(`방 코드 [${code}]를 찾을 수 없습니다. 코드를 다시 확인해 주세요.`, 'warn');
+            return;
+          }
+
+          this.leave();
+          this.roomCode = code;
+          this.role = 'STUDENT';
+          this.roomRef = ref;
+          this.roomIncludeBots = roomVal.meta.includeBots !== false;
+          this.roomDuration = roomVal.meta.duration || 900;
+          this.lastStatus = null;
+
+          // 교사가 설정한 퀴즈 데이터 자동 적용
+          if (roomVal.quizData) {
+            const qTitles = Array.isArray(roomVal.meta.quizTitles) ? roomVal.meta.quizTitles : ['교사 지정 문제집'];
+            const label = qTitles.length === 1 ? qTitles[0] : `${qTitles[0]} 외 ${qTitles.length - 1}개`;
+            loadQuizDataObject(roomVal.quizData, label);
+            document.getElementById('studentLoadedQuizBadge').textContent = `📚 교사 문제집 적용: ${label}`;
+          }
+
+          // 내 플레이어 등록 + 연결 끊김 시 자동 정리
+          const myRef = this.roomRef.child('players/' + this.myId);
+          myRef.onDisconnect().remove();
+          await myRef.set({
+            id: this.myId,
+            name: myName,
+            x: 0,
+            y: 0,
+            mass: getStartMass(),
+            stageId: 'dust',
+            alive: false,
+            quizSolved: saveData.quizSolvedTotal || 0,
+            invuln: 3,
+            updatedAt: Date.now()
+          });
+
+          document.getElementById('multiEntryView').classList.add('hidden');
+          document.getElementById('multiRoomView').classList.remove('hidden');
+          document.getElementById('roomCodeDisplay').textContent = code;
+
+          // 같은 방 친구들 실시간 동기화
+          this.playersListener = (pSnap) => {
+            const allP = pSnap.val() || {};
+            const list = Object.values(allP);
+            document.getElementById('roomPlayerCount').textContent = `${list.length}명`;
+            document.getElementById('roomPlayerList').innerHTML = list.map((pl) => `
+              <span class="px-3 py-1 rounded-full text-xs font-bold ${pl.id === this.myId ? 'bg-emerald-500/25 border border-emerald-400/60 text-emerald-200' : 'bg-slate-800 border border-slate-600 text-slate-200'}">
+                ${pl.id === this.myId ? '⭐ ' : '👤 '}${pl.name}
+              </span>
+            `).join('');
+
+            // 원격 학생 맵 업데이트
+            const seen = new Set();
+            list.forEach((pl) => {
+              if (pl.id === this.myId) return;
+              seen.add(pl.id);
+              const existing = gameState.remotePlayers.get(pl.id);
+              if (existing) {
+                existing.name = pl.name;
+                existing.targetX = pl.x || 0;
+                existing.targetY = pl.y || 0;
+                existing.mass = pl.mass || 30;
+                existing.stageId = pl.stageId || 'dust';
+                existing.alive = !!pl.alive;
+                existing.invuln = pl.invuln || 0;
+                existing.updatedAt = pl.updatedAt || Date.now();
+              } else {
+                gameState.remotePlayers.set(pl.id, {
+                  id: pl.id,
+                  isPlayer: false,
+                  isRemotePlayer: true,
+                  name: pl.name || '학생',
+                  x: pl.x || 0,
+                  y: pl.y || 0,
+                  targetX: pl.x || 0,
+                  targetY: pl.y || 0,
+                  mass: pl.mass || 30,
+                  stageId: pl.stageId || 'dust',
+                  alive: !!pl.alive,
+                  invuln: pl.invuln || 0,
+                  updatedAt: pl.updatedAt || Date.now()
+                });
+              }
+            });
+            gameState.remotePlayers.forEach((_, key) => {
+              if (!seen.has(key)) gameState.remotePlayers.delete(key);
+            });
+          };
+          this.roomRef.child('players').on('value', this.playersListener);
+
+          // 방 상태(WAITING -> PLAYING -> ENDED) 감지
+          this.metaListener = (mSnap) => {
+            const meta = mSnap.val();
+            if (!meta) return;
+            this.roomIncludeBots = meta.includeBots !== false;
+            const prevStatus = this.lastStatus;
+            this.lastStatus = meta.status;
+
+            if (meta.status === 'PLAYING' && prevStatus !== 'PLAYING') {
+              const elapsed = meta.startedAt ? (Date.now() - meta.startedAt) / 1000 : 0;
+              gameState.matchDurationSec = Math.max(30, (meta.duration || 900) - elapsed);
+              if (gameState.mode !== 'PLAYING') {
+                startNewMatch('MULTI');
+              }
+            } else if (meta.status === 'ENDED' && prevStatus === 'PLAYING') {
+              if (gameState.mode === 'PLAYING') {
+                endPlayerRun('🔔 선생님이 수업을 종료했습니다! 오늘 우주 탐험 수고하셨습니다.');
+              }
+            }
+          };
+          this.roomRef.child('meta').on('value', this.metaListener);
+        },
+
+        pushPlayerState(isAlive) {
+          if (!this.roomRef || this.role !== 'STUDENT' || !gameState.player) return;
+          const p = gameState.player;
+          this.roomRef.child('players/' + this.myId).update({
+            name: p.name,
+            x: Math.round(p.x),
+            y: Math.round(p.y),
+            mass: Math.round(p.mass),
+            stageId: p.stageId,
+            alive: !!isAlive,
+            quizSolved: saveData.quizSolvedTotal || 0,
+            invuln: Number((p.invuln || 0).toFixed(1)),
+            updatedAt: Date.now()
+          }).catch(() => {});
+        },
+
+        leave() {
+          if (this.teacherTimerInterval) {
+            clearInterval(this.teacherTimerInterval);
+            this.teacherTimerInterval = null;
+          }
+          if (this.roomRef) {
+            if (this.playersListener) this.roomRef.child('players').off('value', this.playersListener);
+            if (this.metaListener) this.roomRef.child('meta').off('value', this.metaListener);
+            if (this.role === 'STUDENT') {
+              this.roomRef.child('players/' + this.myId).remove().catch(() => {});
+            }
+            this.roomRef = null;
+          }
+          this.playersListener = null;
+          this.metaListener = null;
+          this.roomCode = null;
+          this.role = null;
+          this.lastStatus = null;
+          gameState.remotePlayers.clear();
+
+          document.getElementById('multiRoomView').classList.add('hidden');
+          document.getElementById('multiEntryView').classList.remove('hidden');
+          document.getElementById('teacherLiveView').classList.add('hidden');
+          document.getElementById('teacherSetupView').classList.remove('hidden');
+        }
+      };
+<!-- ... existing code ... -->
+      // 로비 / 교사 / 학생 모달 버튼 연결
+      document.getElementById('btnStartSingle').onclick = () => startNewMatch('SINGLE');
+
+      // 교사 화면 열기/닫기 및 이벤트
+      document.getElementById('btnOpenTeacher').onclick = () => {
+        TeacherQuizManager.init();
+        const stEl = document.getElementById('teacherFirebaseStatus');
+        if (stEl) {
+          stEl.textContent = fbDb ? '● Firebase 실시간 서버 연결됨' : '○ Firebase 연결 오프라인';
+          stEl.className = fbDb ? 'text-[11px] font-bold text-emerald-300' : 'text-[11px] font-bold text-rose-400';
+        }
+        document.getElementById('teacherModal').classList.remove('hidden');
+      };
+      document.getElementById('btnCloseTeacher').onclick = () => {
+        MultiplayerBridge.leave();
+        document.getElementById('teacherModal').classList.add('hidden');
+      };
+      document.getElementById('teacherQuizFilesInput').addEventListener('change', (e) => {
+        TeacherQuizManager.addLocalFiles(e.target.files);
+        e.target.value = '';
+      });
+      document.querySelectorAll('.btn-teacher-dur').forEach((btn) => {
+        btn.onclick = () => {
+          TeacherQuizManager.selectedDuration = parseInt(btn.dataset.duration, 10) || 900;
+          document.querySelectorAll('.btn-teacher-dur').forEach((b) => {
+            const active = b === btn;
+            b.className = active
+              ? 'btn-teacher-dur py-2 rounded-xl text-xs font-extrabold bg-fuchsia-600 text-white border border-fuchsia-400'
+              : 'btn-teacher-dur py-2 rounded-xl text-xs font-extrabold bg-slate-800 text-slate-300 border border-slate-700';
+          });
+        };
+      });
+      document.getElementById('btnTeacherCreateRoom').onclick = () => MultiplayerBridge.createTeacherRoom();
+      document.getElementById('btnTeacherStartMatch').onclick = () => MultiplayerBridge.startTeacherMatch();
+      document.getElementById('btnTeacherEndMatch').onclick = () => MultiplayerBridge.endTeacherMatch();
+      document.getElementById('btnTeacherCloseRoom').onclick = () => MultiplayerBridge.leave();
+      document.getElementById('btnTeacherZoomQr').onclick = () => document.getElementById('qrZoomOverlay').classList.remove('hidden');
+      document.getElementById('btnCloseQrZoom').onclick = () => document.getElementById('qrZoomOverlay').classList.add('hidden');
+      document.getElementById('btnTeacherCopyLink').onclick = () => {
+        const url = MultiplayerBridge.getInviteUrl(MultiplayerBridge.roomCode);
+        const tmp = document.createElement('textarea');
+        tmp.value = url;
+        document.body.appendChild(tmp);
+        tmp.select();
+        try { document.execCommand('copy'); showToast('🔗 학생 초대 링크가 복사되었습니다!', 'success'); } catch (e) {}
+        tmp.remove();
+      };
+
+      // 학생 입장 모달 열기/닫기 및 이벤트
+      document.getElementById('btnOpenMulti').onclick = () => {
+        document.getElementById('studentNameInput').value = document.getElementById('playerNameInput').value || '';
+        document.getElementById('multiModal').classList.remove('hidden');
+      };
+      document.getElementById('btnCloseMulti').onclick = () => {
+        MultiplayerBridge.leave();
+        document.getElementById('multiModal').classList.add('hidden');
+      };
+      document.getElementById('btnJoinRoom').onclick = () => {
+        MultiplayerBridge.joinStudentRoom(document.getElementById('roomCodeInput').value);
+      };
+      document.getElementById('btnLeaveRoom').onclick = () => MultiplayerBridge.leave();
+      document.getElementById('btnStudentWaitUpgrade').onclick = () => openUpgradeModal('evolution', false);
+<!-- ... existing code ... -->
+      // URL ?room=코드 (학생 QR 자동 진입) 또는 ?mode=teacher (교사 화면 자동 진입)
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomParam = urlParams.get('room');
+      const modeParam = urlParams.get('mode');
+      if (roomParam) {
+        document.getElementById('roomCodeInput').value = roomParam.toUpperCase().slice(0, 6);
+        document.getElementById('multiModal').classList.remove('hidden');
+      } else if (modeParam === 'teacher') {
+        TeacherQuizManager.init();
+        document.getElementById('teacherModal').classList.remove('hidden');
+      }
+<!-- ... existing code ... -->
