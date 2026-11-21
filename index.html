@@ -675,6 +675,11 @@
         <button id="tabBtnStats" class="py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition">📈 능력 강화</button>
       </div>
 
+      <!-- 퀴즈 파일 미로드 안내 배너 -->
+      <div id="upgradeNoQuizNotice" class="hidden rounded-2xl bg-amber-500/15 border border-amber-400/50 px-4 py-3 text-xs font-bold text-amber-200 flex items-center justify-between gap-2 flex-wrap">
+        <span>⚠️ 적용된 과학 퀴즈 파일(.js)이 없습니다. 로비에서 퀴즈 파일을 불러오거나 교사 방에 입장해 주세요.</span>
+      </div>
+
       <!-- 탭 컨텐츠 영역 -->
       <div id="upgradeTabContent" class="flex flex-col gap-4"></div>
     </div>
@@ -1440,7 +1445,16 @@
 
         gameState.mode = 'PLAYING';
         gameState.playType = playType;
-        gameState.timeRemaining = playType === 'MULTI' ? (gameState.matchDurationSec || MATCH_DURATION) : MATCH_DURATION;
+        if (playType === 'MULTI') {
+          if (MultiplayerBridge.roomStartedAt) {
+            const elapsed = (Date.now() - MultiplayerBridge.roomStartedAt) / 1000;
+            gameState.timeRemaining = Math.max(5, (MultiplayerBridge.roomDuration || MATCH_DURATION) - elapsed);
+          } else {
+            gameState.timeRemaining = gameState.matchDurationSec || MultiplayerBridge.roomDuration || MATCH_DURATION;
+          }
+        } else {
+          gameState.timeRemaining = MATCH_DURATION;
+        }
         gameState.elapsed = 0;
         gameState.blackHoleAppeared = false;
         if (playType !== 'MULTI') {
@@ -1511,7 +1525,15 @@
         document.getElementById('flareLockIcon').classList.toggle('hidden', saveData.skills.flareUnlocked > 0);
 
         checkPlayerAutoEvolution();
-        if (playType === 'MULTI') MultiplayerBridge.pushPlayerState(true);
+        if (playType === 'MULTI') {
+          MultiplayerBridge.pushPlayerState(true);
+          const nowMs = Date.now();
+          gameState.remotePlayers.forEach((rp) => {
+            if (rp.alive && rp.stageId === 'black_hole' && nowMs - (rp.updatedAt || 0) <= 15000) {
+              triggerBlackHoleEvent(rp.name);
+            }
+          });
+        }
         updateHUD();
       }
 
@@ -1596,7 +1618,7 @@
           return;
         }
         if (p.gravityCooldown > 0) return;
-        p.gravityCooldown = 9.0 * getCooldownMult();
+        p.gravityCooldown = 10.0 * getCooldownMult();
         const radius = (getEntityRadius(p) + 210) * getGravityRangeMult();
         gameState.gravityWaves.push({
           ownerId: p.id,
@@ -1616,7 +1638,10 @@
           return;
         }
         if (p.flareCooldown > 0) return;
-        p.flareCooldown = 6.0 * getCooldownMult();
+        p.flareCooldown = 10.0 * getCooldownMult();
+        const selfCost = p.mass * 0.05;
+        p.mass = Math.max(30, p.mass - selfCost);
+        addFloatingText(p.x, p.y - 25, `🔥 -${Math.floor(selfCost)}`, '#fb923c');
         const speed = 640;
         const r = getEntityRadius(p);
         gameState.supernovaProjectiles.push({
@@ -1624,6 +1649,7 @@
           y: p.y + Math.sin(angle) * (r + 12),
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
+          angle,
           life: 0.95,
           ownerId: p.id,
           r: 13
@@ -1906,7 +1932,7 @@
           }
         }
 
-        // 플레어 투사체 업데이트
+        // 플레어 투사체 업데이트 (봇 + 멀티플레이 원격 학생)
         for (let i = gameState.supernovaProjectiles.length - 1; i >= 0; i--) {
           const pr = gameState.supernovaProjectiles[i];
           pr.x += pr.vx * dt;
@@ -1916,20 +1942,40 @@
             gameState.supernovaProjectiles.splice(i, 1);
             continue;
           }
+          let hitDone = false;
           for (const b of gameState.bots) {
             if (Math.hypot(pr.x - b.x, pr.y - b.y) < getEntityRadius(b) + pr.r) {
               const dmg = Math.max(40, b.mass * 0.22);
               b.mass = Math.max(30, b.mass - dmg);
               b.stageId = stageForBotMass(b.mass, b.preferMassive);
+              const kbAng = pr.angle !== undefined ? pr.angle : Math.atan2(pr.vy, pr.vx);
+              b.vx += Math.cos(kbAng) * 95;
+              b.vy += Math.sin(kbAng) * 95;
               addFloatingText(b.x, b.y, `🔥 -${Math.floor(dmg)}`, '#fb923c');
               SoundFX.hit();
               gameState.supernovaProjectiles.splice(i, 1);
+              hitDone = true;
               break;
+            }
+          }
+          if (!hitDone && gameState.playType === 'MULTI') {
+            const nowMs = Date.now();
+            for (const rp of gameState.remotePlayers.values()) {
+              if (!rp.alive || nowMs - (rp.updatedAt || 0) > 15000 || (rp.invuln || 0) > 0) continue;
+              if (Math.hypot(pr.x - rp.x, pr.y - rp.y) < getEntityRadius(rp) + pr.r) {
+                const dmg = Math.max(40, rp.mass * 0.22);
+                const kbAng = pr.angle !== undefined ? pr.angle : Math.atan2(pr.vy, pr.vx);
+                MultiplayerBridge.sendHitToRemote(rp.id, 'flare', dmg, p.name, kbAng);
+                addFloatingText(rp.x, rp.y, `🔥 -${Math.floor(dmg)}`, '#fb923c');
+                SoundFX.hit();
+                gameState.supernovaProjectiles.splice(i, 1);
+                break;
+              }
             }
           }
         }
 
-        // 반물질 투사체 업데이트 (블랙홀 치명타!)
+        // 반물질 투사체 업데이트 (블랙홀 치명타! 봇 + 멀티플레이 원격 학생)
         for (let i = gameState.antimatterProjectiles.length - 1; i >= 0; i--) {
           const pr = gameState.antimatterProjectiles[i];
           pr.x += pr.vx * dt;
@@ -1939,6 +1985,7 @@
             gameState.antimatterProjectiles.splice(i, 1);
             continue;
           }
+          let hitDone = false;
           for (let bi = 0; bi < gameState.bots.length; bi++) {
             const b = gameState.bots[bi];
             if (Math.hypot(pr.x - b.x, pr.y - b.y) < getEntityRadius(b) + pr.r) {
@@ -1953,7 +2000,27 @@
                 addFloatingText(b.x, b.y, `⚛️ -${Math.floor(dmg)}`, '#e879f9');
               }
               gameState.antimatterProjectiles.splice(i, 1);
+              hitDone = true;
               break;
+            }
+          }
+          if (!hitDone && gameState.playType === 'MULTI') {
+            const nowMs = Date.now();
+            for (const rp of gameState.remotePlayers.values()) {
+              if (!rp.alive || nowMs - (rp.updatedAt || 0) > 15000 || (rp.invuln || 0) > 0) continue;
+              if (Math.hypot(pr.x - rp.x, pr.y - rp.y) < getEntityRadius(rp) + pr.r) {
+                const isBh = rp.stageId === 'black_hole';
+                const dmg = isBh ? rp.mass * 0.52 : rp.mass * 0.3;
+                MultiplayerBridge.sendHitToRemote(rp.id, 'antimatter', dmg, p.name);
+                SoundFX.hit();
+                if (isBh) {
+                  showEventBanner('💥 반물질 명중!', `[${rp.name}] 블랙홀이 반물질과 쌍소멸하며 질량이 대폭 감소했습니다!`, 'amber');
+                } else {
+                  addFloatingText(rp.x, rp.y, `⚛️ -${Math.floor(dmg)}`, '#e879f9');
+                }
+                gameState.antimatterProjectiles.splice(i, 1);
+                break;
+              }
             }
           }
         }
@@ -1999,6 +2066,7 @@
                 setTimeout(() => { rp.justEatenByMe = false; }, 2500);
                 const gain = rp.mass * 0.35 * getFusionMult();
                 p.mass += gain;
+                MultiplayerBridge.sendHitToRemote(rp.id, 'eaten', 0, p.name, null, p.stageId);
                 addFloatingText(rp.x, rp.y, `+${Math.floor(gain)} 흡수!`, '#34d399');
                 SoundFX.eat();
                 checkPlayerAutoEvolution();
@@ -2007,7 +2075,7 @@
           });
 
           gameState.multiSyncAccum += dt;
-          if (gameState.multiSyncAccum >= 0.1) {
+          if (gameState.multiSyncAccum >= 0.15) {
             gameState.multiSyncAccum = 0;
             MultiplayerBridge.pushPlayerState(true);
           }
@@ -2578,6 +2646,7 @@
         if (gameState.mode === 'PAUSED') {
           gameState.mode = 'PLAYING';
           document.getElementById('minimapContainer').classList.toggle('hidden', !(saveData.skills.radarMapUnlocked > 0));
+          document.getElementById('gravityLockIcon').classList.toggle('hidden', saveData.skills.gravityUnlocked > 0);
           document.getElementById('boostLockIcon').classList.toggle('hidden', saveData.skills.boostUnlocked > 0);
           document.getElementById('flareLockIcon').classList.toggle('hidden', saveData.skills.flareUnlocked > 0);
           checkPlayerAutoEvolution();
@@ -2598,6 +2667,10 @@
             ? 'py-2.5 rounded-xl text-xs sm:text-sm font-extrabold bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow'
             : 'py-2.5 rounded-xl text-xs sm:text-sm font-extrabold text-slate-400 hover:text-white';
         });
+
+        const totalQuizCount = quizPool.required.length + quizPool.easy.length + quizPool.medium.length + quizPool.hard.length;
+        const noQuizEl = document.getElementById('upgradeNoQuizNotice');
+        if (noQuizEl) noQuizEl.classList.toggle('hidden', totalQuizCount > 0);
 
         const host = document.getElementById('upgradeTabContent');
         if (gameState.currentUpgradeTab === 'evolution') {
@@ -3574,10 +3647,15 @@
         myId: 'p_' + Math.random().toString(36).slice(2, 10),
         roomRef: null,
         metaListener: null,
-        playersListener: null,
+        playerAddedListener: null,
+        playerChangedListener: null,
+        playerRemovedListener: null,
         dustAddedListener: null,
         dustChangedListener: null,
         dustRemovedListener: null,
+        hitsListener: null,
+        roomPlayersMap: new Map(),
+        uiRenderTimer: null,
         teacherTimerInterval: null,
         roomStartedAt: null,
         roomDuration: 900,
@@ -3664,6 +3742,18 @@
           this.roomRef.child('dusts/' + du.id).set(next).catch(() => {});
         },
 
+        sendHitToRemote(targetId, hitType, dmg, attackerName, angle = null, attackerStageId = null) {
+          if (!this.roomRef || !targetId) return;
+          this.roomRef.child('hits/' + targetId).push({
+            type: hitType,
+            dmg: Math.round(dmg),
+            from: attackerName || '상대',
+            angle: typeof angle === 'number' ? Number(angle.toFixed(3)) : null,
+            stageId: attackerStageId || null,
+            ts: Date.now()
+          }).catch(() => {});
+        },
+
         async createTeacherRoom() {
           if (!fbDb) {
             showToast('Firebase 서버에 연결할 수 없습니다. 인터넷 연결을 확인하세요.', 'warn');
@@ -3726,79 +3816,119 @@
           showToast(`✨ 수업 방 [${code}]이 생성되었습니다! 학생들에게 QR코드를 보여주세요.`, 'success');
         },
 
+        scheduleTeacherUIRender() {
+          if (this.uiRenderTimer) return;
+          this.uiRenderTimer = setTimeout(() => {
+            this.uiRenderTimer = null;
+            this.renderTeacherUI();
+          }, 550);
+        },
+
+        renderTeacherUI() {
+          const list = Array.from(this.roomPlayersMap.values()).sort((a, b) => (b.mass || 0) - (a.mass || 0));
+          const countEl = document.getElementById('teacherStudentCount');
+          if (countEl) countEl.textContent = `${list.length}명`;
+
+          // 관제실 모달이 열려 있을 때만 테이블 DOM 갱신
+          const teacherModalEl = document.getElementById('teacherModal');
+          if (teacherModalEl && !teacherModalEl.classList.contains('hidden')) {
+            const tbody = document.getElementById('teacherStudentTableBody');
+            if (tbody) {
+              if (!list.length) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">학생들이 QR코드를 스캔해 입장하기를 기다리는 중...</td></tr>`;
+              } else {
+                tbody.innerHTML = list.map((pl, idx) => {
+                  const st = getStageById(pl.stageId || 'dust');
+                  const statusBadge = pl.alive
+                    ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">생존</span>'
+                    : '<span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-bold">대기/정비</span>';
+                  return `
+                    <tr class="hover:bg-slate-800/40">
+                      <td class="py-2 px-2 font-orbitron font-bold text-amber-300">${idx + 1}</td>
+                      <td class="py-2 px-2 font-bold text-white">${pl.name || '학생'}</td>
+                      <td class="py-2 px-2 text-sky-200">${st.icon} ${st.name}</td>
+                      <td class="py-2 px-2 text-right font-orbitron font-bold text-cyan-300">${Math.floor(pl.mass || 0)}</td>
+                      <td class="py-2 px-2 text-right font-orbitron text-emerald-300">${pl.quizSolved || 0}</td>
+                      <td class="py-2 px-2 text-center">${statusBadge}</td>
+                    </tr>
+                  `;
+                }).join('');
+              }
+            }
+          }
+
+          // 관전 드롭다운: 포커스 중이 아닐 때만 목록을 갱신하여 선택 방해 방지
+          const selEl = document.getElementById('spectateTargetSelect');
+          if (selEl && document.activeElement !== selEl) {
+            const prevSel = selEl.value || 'TOP';
+            let optionsHtml = `<option value="TOP">🏆 1위 학생 자동 추적</option><option value="OVERVIEW">🌌 우주 전체 조망</option>`;
+            list.forEach((pl) => {
+              optionsHtml += `<option value="${pl.id}">👤 ${pl.name || '학생'} (질량 ${Math.floor(pl.mass || 0)})</option>`;
+            });
+            selEl.innerHTML = optionsHtml;
+            selEl.value = [...selEl.options].some((o) => o.value === prevSel) ? prevSel : 'TOP';
+          }
+
+          // 관전 랭킹 패널이 열려 있을 때만 랭킹 리스트 갱신
+          const rankPanel = document.getElementById('teacherSpectateRankingPanel');
+          if (rankPanel && !rankPanel.classList.contains('hidden')) {
+            this.renderSpectateRanking(list);
+          } else {
+            const cntEl = document.getElementById('spectateRankCount');
+            if (cntEl) cntEl.textContent = `${list.length}명`;
+          }
+        },
+
         attachTeacherListeners() {
           if (!this.roomRef) return;
           const playersRef = this.roomRef.child('players');
-          this.playersListener = (snap) => {
-            const val = snap.val() || {};
-            const list = Object.values(val).sort((a, b) => (b.mass || 0) - (a.mass || 0));
-            document.getElementById('teacherStudentCount').textContent = `${list.length}명`;
+          this.roomPlayersMap.clear();
+          gameState.remotePlayers.clear();
 
-            const tbody = document.getElementById('teacherStudentTableBody');
-            if (!list.length) {
-              tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">학생들이 QR코드를 스캔해 입장하기를 기다리는 중...</td></tr>`;
+          const upsertTeacherPlayer = (id, pl) => {
+            if (!pl) return;
+            pl.id = pl.id || id;
+            this.roomPlayersMap.set(id, pl);
+            const existing = gameState.remotePlayers.get(id);
+            if (existing) {
+              existing.name = pl.name;
+              existing.targetX = pl.x || 0;
+              existing.targetY = pl.y || 0;
+              existing.mass = pl.mass || 30;
+              existing.stageId = pl.stageId || 'dust';
+              existing.alive = !!pl.alive;
+              existing.updatedAt = pl.updatedAt || Date.now();
             } else {
-              tbody.innerHTML = list.map((pl, idx) => {
-                const st = getStageById(pl.stageId || 'dust');
-                const statusBadge = pl.alive
-                  ? '<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">생존</span>'
-                  : '<span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-bold">대기/정비</span>';
-                return `
-                  <tr class="hover:bg-slate-800/40">
-                    <td class="py-2 px-2 font-orbitron font-bold text-amber-300">${idx + 1}</td>
-                    <td class="py-2 px-2 font-bold text-white">${pl.name || '학생'}</td>
-                    <td class="py-2 px-2 text-sky-200">${st.icon} ${st.name}</td>
-                    <td class="py-2 px-2 text-right font-orbitron font-bold text-cyan-300">${Math.floor(pl.mass || 0)}</td>
-                    <td class="py-2 px-2 text-right font-orbitron text-emerald-300">${pl.quizSolved || 0}</td>
-                    <td class="py-2 px-2 text-center">${statusBadge}</td>
-                  </tr>
-                `;
-              }).join('');
+              gameState.remotePlayers.set(id, {
+                id,
+                isPlayer: false,
+                isRemotePlayer: true,
+                name: pl.name || '학생',
+                x: pl.x || 0,
+                y: pl.y || 0,
+                targetX: pl.x || 0,
+                targetY: pl.y || 0,
+                mass: pl.mass || 30,
+                stageId: pl.stageId || 'dust',
+                alive: !!pl.alive,
+                updatedAt: pl.updatedAt || Date.now()
+              });
             }
-            const seen = new Set();
-            const selEl = document.getElementById('spectateTargetSelect');
-            const prevSel = selEl ? selEl.value : 'TOP';
-            let optionsHtml = `<option value="TOP">🏆 1위 학생 자동 추적</option><option value="OVERVIEW">🌌 우주 전체 조망</option>`;
-
-            list.forEach((pl) => {
-              seen.add(pl.id);
-              optionsHtml += `<option value="${pl.id}">👤 ${pl.name || '학생'} (질량 ${Math.floor(pl.mass || 0)})</option>`;
-              const existing = gameState.remotePlayers.get(pl.id);
-              if (existing) {
-                existing.name = pl.name;
-                existing.targetX = pl.x || 0;
-                existing.targetY = pl.y || 0;
-                existing.mass = pl.mass || 30;
-                existing.stageId = pl.stageId || 'dust';
-                existing.alive = !!pl.alive;
-                existing.updatedAt = pl.updatedAt || Date.now();
-              } else {
-                gameState.remotePlayers.set(pl.id, {
-                  id: pl.id,
-                  isPlayer: false,
-                  isRemotePlayer: true,
-                  name: pl.name || '학생',
-                  x: pl.x || 0,
-                  y: pl.y || 0,
-                  targetX: pl.x || 0,
-                  targetY: pl.y || 0,
-                  mass: pl.mass || 30,
-                  stageId: pl.stageId || 'dust',
-                  alive: !!pl.alive,
-                  updatedAt: pl.updatedAt || Date.now()
-                });
-              }
-            });
-            gameState.remotePlayers.forEach((_, key) => {
-              if (!seen.has(key)) gameState.remotePlayers.delete(key);
-            });
-            if (selEl) {
-              selEl.innerHTML = optionsHtml;
-              selEl.value = [...selEl.options].some((o) => o.value === prevSel) ? prevSel : 'TOP';
-            }
-            this.renderSpectateRanking(list);
+            this.scheduleTeacherUIRender();
           };
-          playersRef.on('value', this.playersListener);
+
+          this.playerAddedListener = (snap) => upsertTeacherPlayer(snap.key, snap.val());
+          this.playerChangedListener = (snap) => upsertTeacherPlayer(snap.key, snap.val());
+          this.playerRemovedListener = (snap) => {
+            this.roomPlayersMap.delete(snap.key);
+            gameState.remotePlayers.delete(snap.key);
+            this.scheduleTeacherUIRender();
+          };
+
+          playersRef.on('child_added', this.playerAddedListener);
+          playersRef.on('child_changed', this.playerChangedListener);
+          playersRef.on('child_removed', this.playerRemovedListener);
+          this.renderTeacherUI();
 
           const metaRef = this.roomRef.child('meta');
           this.metaListener = (snap) => {
@@ -3853,6 +3983,10 @@
           if (!panel || !btn) return;
           const willOpen = forceState !== null ? !!forceState : panel.classList.contains('hidden');
           panel.classList.toggle('hidden', !willOpen);
+          if (willOpen) {
+            const list = Array.from(this.roomPlayersMap.values()).sort((a, b) => (b.mass || 0) - (a.mass || 0));
+            this.renderSpectateRanking(list);
+          }
           btn.textContent = willOpen ? '🏆 랭킹 닫기' : '🏆 랭킹 열기';
           btn.className = willOpen
             ? 'px-3 py-1.5 rounded-xl bg-amber-500/85 hover:bg-amber-500 border border-amber-300 text-slate-950 font-extrabold text-xs transition'
@@ -3973,6 +4107,38 @@
 
           const myRef = this.roomRef.child('players/' + this.myId);
           myRef.onDisconnect().remove();
+          const myHitsRef = this.roomRef.child('hits/' + this.myId);
+          myHitsRef.onDisconnect().remove();
+          myHitsRef.remove().catch(() => {});
+          this.hitsListener = (hSnap) => {
+            const hit = hSnap.val();
+            hSnap.ref.remove().catch(() => {});
+            if (!hit || gameState.mode !== 'PLAYING' || !gameState.player) return;
+            const p = gameState.player;
+            if (p.invuln > 0) return;
+            if (hit.type === 'eaten') {
+              const killerStage = hit.stageId ? getDisplayStageName(hit.stageId) : '거대한 별';
+              endPlayerRun(`👤 [${hit.from}] (${killerStage})의 강한 중력에 흡수되었습니다.`);
+              return;
+            }
+            const dmg = Math.max(20, Number(hit.dmg) || 40);
+            p.mass = Math.max(30, p.mass - dmg);
+            SoundFX.hit();
+            if (hit.type === 'antimatter') {
+              addFloatingText(p.x, p.y - 20, `⚛️ [${hit.from}] 피격 -${Math.floor(dmg)}`, '#e879f9');
+              showToast(`⚛️ [${hit.from}]의 반물질에 맞아 질량이 ${Math.floor(dmg)} 감소했습니다!`, 'warn');
+            } else {
+              if (typeof hit.angle === 'number') {
+                p.vx += Math.cos(hit.angle) * 110;
+                p.vy += Math.sin(hit.angle) * 110;
+                p.x += Math.cos(hit.angle) * 8;
+                p.y += Math.sin(hit.angle) * 8;
+              }
+              addFloatingText(p.x, p.y - 20, `🔥 [${hit.from}] 피격 -${Math.floor(dmg)}`, '#fb923c');
+            }
+            this.pushPlayerState(true);
+          };
+          myHitsRef.on('child_added', this.hitsListener);
           await myRef.set({
             id: this.myId,
             name: myName,
@@ -3990,58 +4156,84 @@
           document.getElementById('multiRoomView').classList.remove('hidden');
           document.getElementById('roomCodeDisplay').textContent = code;
 
-          this.playersListener = (pSnap) => {
-            const allP = pSnap.val() || {};
-            const list = Object.values(allP);
-            document.getElementById('roomPlayerCount').textContent = `${list.length}명`;
-            document.getElementById('roomPlayerList').innerHTML = list.map((pl) => `
-              <span class="px-3 py-1 rounded-full text-xs font-bold ${pl.id === this.myId ? 'bg-emerald-500/25 border border-emerald-400/60 text-emerald-200' : 'bg-slate-800 border border-slate-600 text-slate-200'}">
-                ${pl.id === this.myId ? '⭐ ' : '👤 '}${pl.name}
-              </span>
-            `).join('');
+          this.roomPlayersMap.clear();
+          gameState.remotePlayers.clear();
 
-            const seen = new Set();
-            list.forEach((pl) => {
-              if (pl.id === this.myId) return;
-              seen.add(pl.id);
-              const existing = gameState.remotePlayers.get(pl.id);
-              if (existing) {
-                existing.name = pl.name;
-                existing.targetX = pl.x || 0;
-                existing.targetY = pl.y || 0;
-                existing.mass = pl.mass || 30;
-                existing.stageId = pl.stageId || 'dust';
-                existing.alive = !!pl.alive;
-                existing.invuln = pl.invuln || 0;
-                existing.updatedAt = pl.updatedAt || Date.now();
-              } else {
-                gameState.remotePlayers.set(pl.id, {
-                  id: pl.id,
-                  isPlayer: false,
-                  isRemotePlayer: true,
-                  name: pl.name || '학생',
-                  x: pl.x || 0,
-                  y: pl.y || 0,
-                  targetX: pl.x || 0,
-                  targetY: pl.y || 0,
-                  mass: pl.mass || 30,
-                  stageId: pl.stageId || 'dust',
-                  alive: !!pl.alive,
-                  invuln: pl.invuln || 0,
-                  updatedAt: pl.updatedAt || Date.now()
-                });
-              }
-            });
-            gameState.remotePlayers.forEach((_, key) => {
-              if (!seen.has(key)) gameState.remotePlayers.delete(key);
-            });
+          const scheduleLobbyRender = () => {
+            if (this.uiRenderTimer) return;
+            this.uiRenderTimer = setTimeout(() => {
+              this.uiRenderTimer = null;
+              const multiModalEl = document.getElementById('multiModal');
+              if (!multiModalEl || multiModalEl.classList.contains('hidden')) return;
+              const list = Array.from(this.roomPlayersMap.values());
+              document.getElementById('roomPlayerCount').textContent = `${list.length}명`;
+              document.getElementById('roomPlayerList').innerHTML = list.map((pl) => `
+                <span class="px-3 py-1 rounded-full text-xs font-bold ${pl.id === this.myId ? 'bg-emerald-500/25 border border-emerald-400/60 text-emerald-200' : 'bg-slate-800 border border-slate-600 text-slate-200'}">
+                  ${pl.id === this.myId ? '⭐ ' : '👤 '}${pl.name}
+                </span>
+              `).join('');
+            }, 400);
           };
-          this.roomRef.child('players').on('value', this.playersListener);
+
+          const upsertStudentPeer = (id, pl) => {
+            if (!pl) return;
+            pl.id = pl.id || id;
+            this.roomPlayersMap.set(id, pl);
+            scheduleLobbyRender();
+
+            if (id === this.myId) return;
+            const existing = gameState.remotePlayers.get(id);
+            if (existing) {
+              existing.name = pl.name;
+              existing.targetX = pl.x || 0;
+              existing.targetY = pl.y || 0;
+              existing.mass = pl.mass || 30;
+              existing.stageId = pl.stageId || 'dust';
+              existing.alive = !!pl.alive;
+              existing.invuln = pl.invuln || 0;
+              existing.updatedAt = pl.updatedAt || Date.now();
+            } else {
+              gameState.remotePlayers.set(id, {
+                id,
+                isPlayer: false,
+                isRemotePlayer: true,
+                name: pl.name || '학생',
+                x: pl.x || 0,
+                y: pl.y || 0,
+                targetX: pl.x || 0,
+                targetY: pl.y || 0,
+                mass: pl.mass || 30,
+                stageId: pl.stageId || 'dust',
+                alive: !!pl.alive,
+                invuln: pl.invuln || 0,
+                updatedAt: pl.updatedAt || Date.now()
+              });
+            }
+
+            // 다른 학생이 블랙홀로 진화했을 때 내 화면에도 블랙홀 출현 & 반물질 활성화
+            if (pl.alive && pl.stageId === 'black_hole' && gameState.mode === 'PLAYING' && !gameState.blackHoleAppeared) {
+              triggerBlackHoleEvent(pl.name || '학생');
+            }
+          };
+
+          const playersRef = this.roomRef.child('players');
+          this.playerAddedListener = (pSnap) => upsertStudentPeer(pSnap.key, pSnap.val());
+          this.playerChangedListener = (pSnap) => upsertStudentPeer(pSnap.key, pSnap.val());
+          this.playerRemovedListener = (pSnap) => {
+            this.roomPlayersMap.delete(pSnap.key);
+            gameState.remotePlayers.delete(pSnap.key);
+            scheduleLobbyRender();
+          };
+          playersRef.on('child_added', this.playerAddedListener);
+          playersRef.on('child_changed', this.playerChangedListener);
+          playersRef.on('child_removed', this.playerRemovedListener);
 
           this.metaListener = (mSnap) => {
             const meta = mSnap.val();
             if (!meta) return;
             this.roomIncludeBots = meta.includeBots !== false;
+            this.roomDuration = meta.duration || 900;
+            this.roomStartedAt = meta.startedAt || null;
             const prevStatus = this.lastStatus;
             this.lastStatus = meta.status;
 
@@ -4084,22 +4276,35 @@
             clearInterval(this.teacherTimerInterval);
             this.teacherTimerInterval = null;
           }
+          if (this.uiRenderTimer) {
+            clearTimeout(this.uiRenderTimer);
+            this.uiRenderTimer = null;
+          }
           if (this.roomRef) {
-            if (this.playersListener) this.roomRef.child('players').off('value', this.playersListener);
+            if (this.playerAddedListener) this.roomRef.child('players').off('child_added', this.playerAddedListener);
+            if (this.playerChangedListener) this.roomRef.child('players').off('child_changed', this.playerChangedListener);
+            if (this.playerRemovedListener) this.roomRef.child('players').off('child_removed', this.playerRemovedListener);
             if (this.metaListener) this.roomRef.child('meta').off('value', this.metaListener);
             if (this.dustAddedListener) this.roomRef.child('dusts').off('child_added', this.dustAddedListener);
             if (this.dustChangedListener) this.roomRef.child('dusts').off('child_changed', this.dustChangedListener);
             if (this.dustRemovedListener) this.roomRef.child('dusts').off('child_removed', this.dustRemovedListener);
+            if (this.hitsListener) this.roomRef.child('hits/' + this.myId).off('child_added', this.hitsListener);
             if (this.role === 'STUDENT') {
               this.roomRef.child('players/' + this.myId).remove().catch(() => {});
+              this.roomRef.child('hits/' + this.myId).remove().catch(() => {});
             }
             this.roomRef = null;
           }
-          this.playersListener = null;
+          this.playerAddedListener = null;
+          this.playerChangedListener = null;
+          this.playerRemovedListener = null;
           this.metaListener = null;
           this.dustAddedListener = null;
           this.dustChangedListener = null;
           this.dustRemovedListener = null;
+          this.hitsListener = null;
+          this.roomStartedAt = null;
+          this.roomPlayersMap.clear();
           gameState.dustMap.clear();
           this.roomCode = null;
           this.role = null;
@@ -4110,6 +4315,7 @@
           document.getElementById('multiEntryView').classList.remove('hidden');
           gameState.teacherSpectating = false;
           document.getElementById('teacherSpectatorHUD').classList.add('hidden');
+          this.toggleSpectateRanking(false);
           document.getElementById('teacherLiveView').classList.add('hidden');
           document.getElementById('teacherSetupView').classList.remove('hidden');
         }
