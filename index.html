@@ -180,18 +180,6 @@
         </div>
       </div>
 
-      <!-- 퀴즈 파일 상태 및 직접 불러오기 -->
-      <div class="bg-slate-900/70 border border-slate-700/60 rounded-2xl px-3.5 py-2.5 flex items-center justify-between gap-2 flex-wrap">
-        <div class="min-w-0 flex-1">
-          <div class="text-[10px] text-slate-400 font-bold">적용된 과학 퀴즈 파일</div>
-          <div id="lobbyQuizSourceName" class="text-xs font-bold text-cyan-200 truncate">불러오는 중...</div>
-        </div>
-        <label for="lobbyQuizFileInput" class="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-[11px] font-bold text-sky-200 shrink-0 transition">
-          📂 .js 불러오기
-        </label>
-        <input id="lobbyQuizFileInput" type="file" accept=".js" class="hidden" />
-      </div>
-
       <!-- 모드 선택 버튼 (교사 / 학생 / 싱글플레이 / 업그레이드) -->
       <div class="flex flex-col gap-2.5 mt-1">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -203,14 +191,9 @@
           </button>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <button id="btnStartSingle" class="py-3 px-4 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:brightness-110 active:scale-[0.98] text-white font-extrabold text-sm shadow-md transition">
-            🤖 싱글플레이 연습
-          </button>
-          <button id="btnLobbyUpgrade" class="py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500/90 via-orange-500/90 to-rose-500/90 hover:brightness-110 active:scale-[0.98] text-white font-extrabold text-sm shadow-md transition">
-            ⚡ 업그레이드 (진화 · 스킬)
-          </button>
-        </div>
+        <button id="btnStartSingle" class="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:brightness-110 active:scale-[0.98] text-white font-extrabold text-sm shadow-md transition">
+          🤖 싱글플레이 연습
+        </button>
       </div>
 
       <div class="text-[11px] text-slate-400 text-center leading-relaxed">
@@ -4927,28 +4910,6 @@
         }
       });
 
-      // 로비 파일 직접 불러오기
-      document.getElementById('lobbyQuizFileInput').addEventListener('change', (e) => {
-        const file = e.target.files && e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          try {
-            const fn = new Function(String(reader.result || '') + '; return typeof quizData !== "undefined" ? quizData : null;');
-            const parsed = fn();
-            if (parsed && loadQuizDataObject(parsed, file.name.replace(/\.js$/i, ''))) {
-              showToast(`📚 [${file.name}] 문제집이 적용되었습니다!`, 'success');
-            } else {
-              showToast('올바른 quizData 형식의 .js 파일이 아닙니다.', 'warn');
-            }
-          } catch (err) {
-            showToast('파일을 읽는 중 오류가 발생했습니다.', 'warn');
-          }
-        };
-        reader.readAsText(file, 'utf-8');
-        e.target.value = '';
-      });
-
       // 로비 / HUD / 모달 버튼 연결
       document.getElementById('btnStartSingle').onclick = () => {
         const nameEl = document.getElementById('playerNameInput');
@@ -4959,7 +4920,7 @@
         }
         startNewMatch('SINGLE');
       };
-      document.getElementById('btnLobbyUpgrade').onclick = () => openUpgradeModal('evolution', false);
+
 
 
 
